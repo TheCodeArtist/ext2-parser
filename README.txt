@@ -45,8 +45,16 @@ The above command copies the contents of the file present at the inode and
  saves the contents in a local-file(outside ext2-file.img) by the name given
  in dst-filename.
 
+
 ==========================
-  4. Version History
+  4. References
+==========================
+
+- Reference material in references directory, copyright of respective owners.
+
+
+==========================
+  5. Version History
 ==========================
 - ext.c to parse and list directory structure.
   Syntax: ./ext <img-file> [inode-num]

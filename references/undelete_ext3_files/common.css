@@ -1,0 +1,79 @@
+body {
+  background-color: white;
+}
+
+div.reset-float {
+  height: 0px;
+  clear: both;
+}
+
+div.frame {
+  margin: 16px 10px 0 0;
+  white-space: nowrap;
+}
+
+div.frame h2 {
+  margin: 0;
+  padding: 0;
+  font-size: 1.2em;
+}
+
+table.frame {
+  margin: 0;
+  padding: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background-color: #bef2b1;		/* Default frame fill color */
+  /* border: 2px solid red; */
+}
+
+table.frame td {
+  margin: 0;
+  padding: 0;
+  /* border: 1px solid black; */
+}
+
+td.frame-top-left {
+  width: 16px;
+  height: 16px;
+  background-image: url(../images/frame-top-left-02.png);
+}
+
+td.frame-top {
+  height: 16px;
+  background-image: url(../images/frame-top-02.png);
+}
+
+td.frame-top-right {
+  width: 16px;
+  height: 16px;
+  background-image: url(../images/frame-top-right-02.png);
+}
+
+td.frame-left {
+  width: 16px;
+  background-image: url(../images/frame-left-02.png);
+}
+
+td.frame-right {
+  width: 16px;
+  background-image: url(../images/frame-right-02.png);
+}
+
+td.frame-bottom-left {
+  width: 16px;
+  height: 16px;
+  background-image: url(../images/frame-bottom-left-02.png);
+}
+
+td.frame-bottom {
+  height: 16px;
+  background-image: url(../images/frame-bottom-02.png);
+}
+
+td.frame-bottom-right {
+  width: 16px;
+  height: 16px;
+  background-image: url(../images/frame-bottom-right-02.png);
+}
+

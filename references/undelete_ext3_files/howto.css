@@ -1,0 +1,74 @@
+h1 {
+  text-align: left;
+  margin-left: 40px;
+}
+
+div.cdeh h1 {
+  margin-left: -10px;
+  white-space: nowrap; 
+}
+
+#date {
+  margin: 0;
+  margin-left: 40px;
+  font-style: italic;
+}
+
+#content {
+  margin: 50px;
+  margin-top: 0;
+}
+
+h2 {
+  margin-left: -10px;
+}
+
+#footer {
+  border-top: 1px solid black;
+  font-size: smaller;
+}
+
+li {
+  margin-top: 1em;
+}
+
+div.command {
+  border: 1px solid gray;
+  background-color: #eeeeee;
+}
+
+div.command pre {
+  margin: 1em;
+  color: #4040c0;
+}
+
+pre.ext3grep {
+  border: 1px solid gray;
+  background-color: #eeeeee;
+  padding: 1em;
+}
+
+p.warning {
+  color: red;
+}
+
+div.quote {
+  border: 1px solid gray;
+}
+
+div.quote p {
+  margin: 1em;
+}
+
+table.struct {
+  margin: 1em;
+  padding: 0;
+  border-collapse: collapse;
+  border: 1px solid black;
+}
+
+table.struct td {
+  margin: 0;
+  padding: 0.5em;
+  border: 1px solid black;
+}

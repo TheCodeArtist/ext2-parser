@@ -1,0 +1,579 @@
+<!DOCTYPE html PUBLIC "-//IETF//DTD HTML//EN">
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+<title>Project 3 light: accessing the ext2 filesystem</title>
+</head>
+
+<body>
+<h2>Project 3 light: accessing the ext2 filesystem</h2>
+
+<b>Out:</b> Friday, May 29th<br>
+<b>Due:</b> Friday, June 5th, 11:59pm
+<p>
+
+</p><center>
+[
+  <a href="#overview">project overview</a> |
+  <a href="#ext2">understanding ext2</a> |
+  <a href="#impl">finishing our implementation</a> |
+  <a href="#turn">what to turn in</a>
+]
+
+</center>
+
+<h3><a name="overview">Project overview</a></h3>
+
+In this project, you'll finish the implementation of a program that
+understands the on-disk format of a Linux "ext2" filesystem walks
+through its directory hierarchy to read some files. We've provided
+most of the code for you, but we have omitted the implementation of
+some key functions.  Your job is to fill in the omitted code.
+<p>
+
+To help you know whether or not your code is correct, we've provided
+you with a bunch of test code that examine the data structures and
+file content retrieved by your code, and compares them to the
+known-to-be-correct values. Once your code passes all of our tests,
+you're done! If your code fails some of our tests, you can look at the
+tests and the expected values they print out, to help you diagnose
+your errors.
+</p><p>
+
+There is a fair amount of code in the program, but you'll only need to
+write on the order of 80 new lines of code to finish the
+implementation. Of course, getting the right 80 lines isn't trivial.
+But, we've provided detailed step-by-step comments within the code
+itself telling you what you need to accomplish each step of the way.
+</p><p>
+
+There are two high-level phases to this project:
+</p><ol>
+ <li> Learn about the on-disk format of ext2.
+ </li><li> Dive into the code and finish our implementation.
+</li></ol>
+
+Once you've passed these phases, you're ready to turn in your final
+implementation.
+
+<hr>
+
+<h3><a name="ext2">Understanding ext2</a></h3>
+
+In this section of the project web page, we'll give you a good enough
+understanding of the ext2 filesystem to finish the project.  If you're
+curious for more information, there are several books and web pages
+that discuss the ext2 file system in gory detail; for example, see see
+chatper 9.1 of <a href="http://www.cs.washington.edu/education/courses/451/01wi/TLKCopy/tlk.html">The
+Linux Kernel</a>, or chapter 17 of <a href="http://wiki.nectec.or.th/ngiwiki/bin/viewfile/Main/Kritsana_Deliverable?rev=1;filename=OReilly_Understanding_The_Linux_Kernel.pdf">Understanding
+the Linux Kernel</a>.  <p>
+
+ext2 (the "second extended filesystem") has a data structure and
+on-disk layout that is similar to FFS, which we covered in class.
+Here's a picture describing ext2's on-disk layout:
+<br><br>
+</p><center>
+<img src="project3_light_files/ext2.png" height="282/" width="536">
+</center>
+<br clear="all"><br>
+
+At one level, an ext2 filesystem is just a series of blocks on disk,
+starting with block 0 and ending with block N, where N = (disk_size /
+block_size) - 1. The block size of an ext2 filesystem is a parameter
+chosen when the filesystem is formatted: you shouldn't assume any
+particular blocksize, though in practice you'll typically encounter
+1024 byte or 4096 byte block sizes. So, if you need to fetch block 5
+off of the disk, you'd fetch <i>blocksize</i> bytes starting from
+offset <i>5*blocksize</i> on disk. <p>
+
+At a different level, ext2 splits the disk into an initial boot block
+that the BIOS of the computer fetches and executes during the boot
+process, followed by a series of "block groups." A block group is a
+lot like a cylinder group that we discussed in class: it's a set of
+adjacent blocks.  Blocks within the same block group tend to be
+spatially close to each other on the disk, and therefore quick to seek
+between.  Blocks in different block groups might be very far apart. In
+ext2, each block group has a fixed size, selected at the time the
+filesystem is formatted.
+</p><p>
+
+Each block group is split into a set of sections:
+
+</p><ul>
+
+  <li> the <b>superblock</b> is the first block within each block group.
+  It contains a bunch of metadata describing the file system, such as
+  the block size, the number of blocks in a block group, and other
+  information. Each block group in an ext2 filesystem contains a copy
+  of the superblock.  (Note that in later revisions of ext2, fewer
+  copies of the superblock were made, but for this project you can
+  assume the superblock exists as the first block of every block
+  group.)
+  <p>
+
+  </p></li><li> the <b>group descriptor table</b> occupies some integral number
+  of blocks following the superblock.  The group descriptor table
+  contains one descriptor entry for each block group in the
+  filesystem. A descriptor entry describes various things about its
+  associated block group, including the block number at which its
+  inode table begins.  Descriptor entry 0 refers to block group 0,
+  descriptor entry 1 to block group 1, and so on.
+  <p>
+  If there are N block groups in the file system, there will be N
+  group descriptors entries in the group descriptor table.  Since a
+  group descriptor has a known size (32 bytes), you can use the
+  information in the superblock to calculate how many block groups
+  there are, and therefore how many group descriptors there are, and
+  therefore how many blocks the group descriptor table occupies.
+  </p><p>
+  Each block group in the file system contains a full copy of the
+  group descriptor table.
+  </p><p>
+
+  </p></li><li> the <b>data block bitmap</b> is a bitmap that indicates which
+  of the data blocks within this block group have been allocated, and
+  which are free for allocation.  You won't be accessing or using this
+  bitmap in this project.
+  <p>
+
+  </p></li><li> the <b>inode bitmap</b> is a bitmap that indicates which of the
+  inodes within this block group have been allocated, and which are
+  free for allocation.  You won't be accessing or using this bitmap in
+  this project.
+  <p>
+
+  </p></li><li> the <b>inode table</b> is an array of inodes.  Each inode
+  occupies 128 bytes.  The structure of an inode is roughly what we
+  covered in class; you'll dig into the details during your
+  implementation.  An inode of a file contains the file's type
+  (e.g., directory vs. regular file), the size of the file's data,
+  pointers to direct data blocks, a singly indirect block, a doubly
+  indirect block, and a triply indirect block.
+  <p>
+  The superblock tells you how many inodes there are in a block group,
+  and given this, you can calculate how many blocks the inode table
+  occupies.
+  </p><p>
+
+  </p></li><li> the <b>data blocks</b> section is an array of data blocks used
+  to store files' content.
+  <p>
+</p></li></ul>
+
+<h4>Directories</h4>
+
+In ext2, a directory is just a file that happens to contain specially
+formatted data. A directory file contains a linked list of
+variable-sized directory entries. Each entry in the directory contains
+an inode number for that entry, a filename for the entry, and an
+offset to the next entry in the linked list. So, by reading the
+contents of a directory file, you can find out the names of files
+within that directory, as well as the inode numbers for those
+files. Note that every directory contains two special entries, one for
+the "." file (the current directory), and one for the ".." file (the
+parent directory).
+<p>
+
+For detailed information about what a directory file looks like in
+ext2, look at <a href="http://linux-security.com.cn/ebooks/ulk3-html/0596005652/understandlk-CHP-18-SECT-2.html#understandlk-CHP-18-FIG-3">figure
+13 on this external page</a>.
+</p><p>
+
+There are two details you may encounter.  First, when a file is
+deleted from a directory, it's possible that the directory file itself
+is not repacked to fill the gap, but rather a "hole" gets created in
+the directory file where the deleted file's directory entry used to
+live, and the linked list structure will jump over the hole.  Second,
+the linked list structure is terminated with a directory entry
+containing inode number 0: this is an indicator that this is a
+terminating entry (kind of like a NULL terminator in a string), rather
+than a valid file in the directory.
+
+</p><h4>Inodes</h4>
+
+An inode in EXT2 is 128 bytes long, and contains many different
+fields.  For this project, we only care about a few of them:
+
+<ul>
+  <li> the <b>i_size</b> field indicates the number of bytes stored
+  in the file, i.e., the file's length.
+  <p>
+
+  </p></li><li> the <b>i_block</b> array is an array of 15 block numbers.
+  <ul>
+   <li> The first 12 entries in the array (i_block[0] through
+    i_block[11]) contain the block numbers of direct blocks:  they
+    name data blocks that contain the first 12 blocks worth of the
+    file's content.<p>
+
+    </p></li><li> The 13th entry in the array (i_block[12]) contains the block
+    number of a singly indirect block:  it names a block that contains
+    an array of 4 byte block numbers; each of these blocks contains
+    additional file contents.<p>
+
+    </p></li><li> The 14th entry in the array (i_block[13]) contains the block
+    number of a doubly indirect block:  it names a block that contains
+    an array of 4-byte block numbers, each of these blocks in a singly
+    indirect block, that contains an array of 4-byte block numbers of
+    direct blocks.<p>
+
+    </p></li><li> The 15th entry in the array (i_block[14]) contains the block
+    number of a triple indirection block.<p>
+  </p></li></ul>
+</li></ul>
+
+<h4>Summary</h4>
+
+This is basically everything you need to understand about how
+EXT2 lays out its data on disk.  Let's dive into the implementation,
+picking up additional details as needed...
+<p>
+
+</p><hr>
+
+<h3><a name="impl">Finishing our implementation</a></h3>
+
+<h4>A. Getting familiar with the code we've given you</h4>
+
+First, <a href="http://www.cs.washington.edu/education/courses/cse451/09sp/projects/project3light/project3light.tar.gz">download the source
+code</a> for our partial implementation.  Untar it and poke around in
+the source code to get a general idea of its structure.  The "main()"
+function lives in <tt>ext2reader/ext2reader.c</tt>.  The bulk of the
+program lives in <tt>ext2reader/ext2access.c</tt>; you'll be adding
+code to functions in that file.  The <tt>ext2reader/inc/</tt>
+directory contains header files that declare in-memory structures used
+by the file system code.
+<p>
+
+Second, try compiling the program by cd'ing into <tt>ext2reader/</tt>,
+and running "make".
+</p><p>
+
+Finally, try running the <tt>ext2reader</tt> program.  You'll need to
+pass an argument that is the name of a file containing a valid ext2
+file system image.  We've provided such an image for you in
+<tt>/cse451/projects/p3light/451_filesystem.ext2</tt> on forkbomb.cs.  So, to
+run the program, issue the command:
+
+</p><blockquote>
+<pre>$ ./ext2reader /cse451/projects/p3light/451_filesystem.ext2
+</pre>
+</blockquote>
+<p>
+
+Note that the program will print out the results of our test code, and
+that the test code assumes you're running the program against the
+<tt>451_filesystem.ext2</tt> image.  Because some of the
+implementation is missing, the program in its current, unfinished
+state fails catastrophically and quits with a floating point
+exception.  As you get more of the implementation working, you'll get
+further through its execution, and see more of the tests and their
+results.  Eventually, when you have your implementation fully working,
+it will print out how many total points your implementation has
+earned.
+</p><p>
+
+The 451_filesystem.ext2 file does contain a mountable file system
+image; if you were to write the contents of this file into a raw hard
+drive, you'd be able to mount it from your computer.
+</p><p>
+
+Even better, if you have root access on a linux machine, you can
+actually try this out without having a spare hard drive.  Copy the
+file into that linux machine, and you can then use a loopback device
+and ask linux to treat the file as though it were a hard drive.  Since
+you have root access to the 451 virtual machine used in project 1,
+try copying the file into that VM and running the following commands
+as root:
+
+</p><blockquote>
+<pre>$ mkdir -p /mnt
+$ mount -o loop -t ext2 451_filesystem.ext2
+$ ls -al /mnt/
+</pre>
+</blockquote>
+
+<h4>B. Understand read_superblock()</h4>
+ 
+Let's get going with the code.  Begin by opening up the file
+<tt>ext2reader/extaccess.c</tt> in your favorite editor.  This file is
+where you will be spending the bulk of your time in this project.  The
+first function defined in this file is read_superblock(); this
+function reads the superblock stored in the first blockgroup of the
+disk image into memory, and even better, into a "struct
+os_superblock_t" structure.  This structure is defined in
+<tt>ext2reader/inc/superblock.h</tt>.<p>
+
+<i>(A programming note: our implementation makes some strong
+assumptions about how the compiler lays out C structs in memory.  This
+isn't always safe to do, but we've verified that our implementation
+works on Linux and Mac OS X on x86 machines.)</i></p><p>
+
+Make sure you understand how and why read_superblock() works.  Note
+that this implementation relies on some specific knowledge of the ext2
+layout on disk: the first copy of the superblock is in a known
+location on disk (byte 1024), and has a known size (<tt>sizeof(struct
+os_superblock_t)</tt> bytes).  Scan through superblock.h and get a
+feel for the kind of information that is stored in a real superblock.
+You'll need to use some of the fields in the superblock structure
+later in the project.
+
+</p><h4>C. Finish the implemention of calc_metadata()</h4>
+
+calc_metadata() is a function that uses the data in the superblock to
+extract or calculate some key pieces of information about the
+file system, and stashes it in a "struct os_fs_metadata_t" structure.
+We've provided a bit of the function's implementation for you (one
+tricky bit in particular), but the rest is up to you to finish.  The
+"struct os_fs_metadata_t" structure is defined in
+<tt>ext2reader/inc/ext2access.h</tt>.  <p>
+
+Read through <tt>ext2access.h</tt>, and get a sense of the things
+you'll need to extract from the superblock or calculate.  </p><p>
+
+We've provided step-by-step instructions on what you need to do to
+finish implementing this function.  As well, our test code will rigorously
+confirm that you've gotten everything right, once you have enough
+of the function implementation to make it past the floating
+point exception.  Finally, we've provided some hints in calc_metadata
+in the form of variables that we think you'll want to use along the
+way.
+</p><p>
+
+So, finish the implementation, compile ext2reader, and try re-running
+and fixing it until our tests have verified that calc_metadata() is
+correct.  For calibration, our implementation of the parts that are
+missing have about 12 lines of code.
+
+</p><p>
+
+<font color="red">A warning:</font> we will be pretty mechanical in
+our grading: we'll give you the grades that the test program says you
+should get, but we'll deduct points if the compiler generates any
+compiler warnings. (Note there are two compiler warnings produced when
+you compile the code we've given you; this is because some of the
+implementation is still missing.  You should find that you fix these
+warnings as a side-effect of working through the project.)  </p><p>
+
+You'll need to write clean code and correct code to get full marks!
+
+</p><h4>D. Implement read_bgdt()</h4>
+
+read_bgdt() will read the blockgroup descriptor table off of disk
+into memory, and stash a pointer to the descriptor table in
+the metadata structure "fsm" that was previously allocated.
+<p>
+
+You'll first need to allocate a single buffer that's big enough to
+store all entries in the blockgroup descriptor table, and then read
+the entire table from disk into the buffer in one fell swoop.  Doing
+this relies on the fact that the on-disk layout of the descriptor
+table is the same as the in-memory layout of an array of "struct
+os_blockgroup_descriptor_t" structures.  </p><p>
+
+The "struct os_blockgroup_descriptor_t" structure is defined in
+<tt>ext2reader/inc/blockgroup_descriptor.h</tt>.
+</p><p>
+
+As a hint, our implementation of this function has about 7 lines
+of code in total, including some "asserts" that we put in there
+as sanity checks.  As before, compile and run ext2reader until
+you pass all of our tests for this function.
+
+</p><h4>E. Implement fetch_inode()</h4>
+
+Given an inode number, fetch_inode() should read the associated inode
+off of disk into a "struct os_inode_t" structure passed to the
+function by the caller.  (Note that the caller passes a pointer to an
+already-allocated structure as an argument to fetch_inode(), so you
+don't need to malloc anything inside fetch_inode() itself.)
+<p>
+
+The hard part in implementing this function is figuring out where the
+inode with a given inode number actually lives on disk.  We've provided
+a lot of hints on how to figure this out...just follow the steps we've
+laid out.  Here's a potential stumbling block you should avoid falling
+prey too:  the first inode in the filesystem has inode number 1, not
+inode number 0.  (Bleah!)
+
+</p><p>
+"struct os_inode_t" is defined in <tt>ext2reader/inc/inode.h</tt>.
+You'll want to familiarize yourself with it.
+</p><p>
+
+As before, compile and run ext2reader until you pass all of our tests
+for this function.  As calibration, our implementation has about 14
+lines of code.
+
+</p><h4>F. Finish the implementation of calculate_offsets().</h4>
+
+calculate_offsets() accepts the block number to read from a file,
+and figures out whether that block number is accessed through one
+of the 12 direct blocks in the inode, or through the single
+indirection block, or through the double indirection block, or through
+the triple indirection block.  If it should be accessed through
+indirection blocks, it figures out the indexes into those blocks to use.
+<p>
+
+This code is pretty tricky, but it's useful to get a sense for what
+it's doing and what's involved with getting it right.
+</p><p>
+
+We've finished most of the implementation of this function, but
+have left you one piece: figuring out the appropriate index into
+the indirection blocks for very large offsets into a big file that
+require using a triple indirection block (and hence also use a double,
+and single, indirection block) on the way to the direct block.  Look
+for the comment "FINISH THE CODE IN THIS IF CLAUSE" to see where you
+need to complete the function.
+</p><p>
+
+Getting this last piece right is tricky, but the good news is that if
+you can't get it right, the rest of the project will work anyway,
+since the file system image we gave you isn't big enough to require a
+triple indirection block for any of its files.  (Our test code will
+still test that you handle triple indirection blocks correctly,
+though!)  </p><p>
+
+As calibration, our implementation of the missing piece has about
+6 lines of code.
+
+</p><h4>G. Read through file_blockread()</h4>
+
+file_blockread() will read a block from a given file off of the file
+system into memory.  The caller passes in an inode for the file it
+wants to read from, and the block offset within that file to read.
+For instance, if the blocksize is 1024 bytes, then to read bytes
+0-1023 from the file, the caller would pass in block offset 0.  To
+read bytes 1024-2047 from the file, the caller would pass in block
+offset 1.
+<p>
+file_blockread() uses the offsets and indexes calculated by
+calculated_offsets() to do the actual reading.  The only real
+complication is that ext2 supports the notion of "holes" in files:
+ranges of a file that logically exists containing zeroes, but which
+don't have any physical data blocks allocated to store the zeroes.
+</p><p>
+Read through the implementation to get a sense of how it works, and
+make sure you understand the interface to this function -- i.e.,
+how to invoke it, what the arguments mean, and what gets returned
+by the function on success or failure.
+
+</p><h4>H. Implement file_read().</h4>
+
+file_read() will read the full contents of a file from disk into
+memory.  The caller passes file_read() the inode number of the
+file it wants to read, and file_read() will:
+<ul>
+  <li> convert the inode number into a "struct os_inode_t" using
+  fetch_inode(),
+  <p>
+  
+  </p></li><li> allocate space for the full contents of the file,
+  <p>
+
+  </p></li><li> loop through the blocks of the file, using file_blockread() to
+  read them into memory.
+</li></ul>
+
+<p>
+As before, compile and run ext2reader until you pass all of our tests
+for this function.  As calibration, our implementation has about
+22 lines of code.
+
+</p><h4>I. Read through pop_dir_component().</h4>
+
+pop_dir_component() is a utility function that receives an
+absolute pathname as an argument, and splits it into two pieces:
+the top-most component, and the remaining components.  For example,
+it would take a path such as:
+<p>
+</p><pre>  /foo/bar/baz
+</pre>
+<p>
+and split it into the following two pieces:
+</p><p>
+</p><pre>  foo
+
+and
+
+  /bar/baz
+</pre>
+<p>
+It allocates space for the top-most component, and returns a pointer
+to it through the "next_component" argument.  It updates the path in
+place to re-write it to be the remaining components (i.e., converts
+/foo/bar/baz into /bar/baz in place).
+</p><p>
+You'll make use of this function in your implementation of scan_dir,
+so make sure you understand how it works.  Reading the test code
+for this function (in <tt>testcode.c</tt>'s check_pop_dir_component())
+is a good way to confirm your understanding is correct.
+
+</p><h4>J. Implement scan_dir()</h4>
+
+Given the contents of a directory file, the length of the directory
+file, and a file name, this function scans through the directory file
+looking for a directory entry that matches the file name.  If it finds
+one, it returns the inode number for that file name.  If it doesn't,
+it returns 0.
+<p>
+You'll need to understand some details about the linked list structure
+of directory entries within a directory file to implement this
+function correctly.  We've provided enough information in part
+A of this web page, as well as in the comments inside scan_dir()
+itself.
+</p><p>
+As before, compile and run ext2reader until you pass all of our
+tests for this function.  As calibration, our implementation has
+about 15-20 lines of code.
+</p><p>
+You're almost done now...
+
+</p><h4>K. Read through ls_dir()</h4>
+
+ls_dir is similar to scan_dir(), except it produces a listing
+of all of the files contained within a directory.
+
+<h4>L. Read through path_read()</h4>
+
+Path read is the culmination of this project:  given a
+string containing an absolute path name (e.g., "/foo/bar/baz"),
+this function will walk down the directory hierarchy using
+scan_dir() and pop_dir_component(), and then read the contents
+of the leaf of the path name into memory, returning this to the
+caller.
+<p>
+If you want a challenge, delete our implementation of path_read(),
+and figure out how to implement it yourself...this is strictly
+optional, of course!
+</p><p>
+
+</p><hr>
+
+<h3><a name="turn">What to turn in</a></h3>
+
+Create a README.TXT file in the <tt>ext2reader/</tt>
+with the names of your project team members.
+<p>
+Then, create .tar.gz file containing the completed
+<tt>ext2reader/</tt> directory; for example, run the
+following command to create the .tar.gz file:
+</p><blockquote>
+<pre>$ tar -cvzf ext2reader.tar.gz ./ext2reader/
+</pre>
+</blockquote>
+<p>
+
+Use the turnin program on attu.cs to turn in your ext2reader.tar.gz
+file, under the project name "project3light".
+</p><p>
+
+As a reminder, we will be mechanical about our grading for this
+assignment.  We'll go primarily by how may test code points your code
+accumulates, but we will deduct points for any compiler warnings that
+are emitted during compilation.  (If your code doesn't compile and
+run, you might not earn any points at all!!)
+
+
+
+</p></body></html>

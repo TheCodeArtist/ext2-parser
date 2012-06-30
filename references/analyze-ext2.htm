@@ -1,0 +1,830 @@
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+<meta name="GENERATOR" content="Microsoft FrontPage 4.0">
+<meta name="ProgId" content="FrontPage.Editor.Document">
+<title>Filesystem analysis</title>
+</head>
+
+<body>
+<p align="center"><b><font size="4">Analyzing a filesystem</font></b></p>
+<p align="left">The ext2 filesystem is the one that linux systems use most
+prevalently. It is described in some detail in sections 9.0 and 9.1 of "<a href="http://www.tldp.org/LDP/tlk/fs/filesystem.html">The
+Linux Kernel</a>." Please
+read those two sections. In particular, it's important to understand the various
+data structures used and then how to traverse them to do the central job of
+finding a file. (<a href="http://e2fsprogs.sourceforge.net/ext2intro.html">Design and Implementation of the Second Extended Filesystem</a>,
+by ext2's author Remy Card, is another interesting source.)</p>
+
+<p align="left">
+            <b>Filesystem Structures</b></p>
+
+<p align="left">
+            The basic overall layout of a disk looks like this:</p>
+
+<p align="center">
+            <img src="analyze-ext2_files/ext2.gif" border="0" height="228" width="552"></p>
+
+<p align="left">The unlabeled initial portion of the disk is the boot block. We
+will confine ourselves to diskettes. On a diskette there is just one block
+group. So a diskette has a boot block followed by the structure shown in the
+lower bar. Note that "every file in the EXT2 file system is described by a
+single inode and each inode has a single unique number identifying it. The
+inodes for the file system are all kept together in [an inode table (depicted
+above)]. EXT2 directories are simply special files (themselves described by
+inodes) which contain pointers to the inodes of their directory entries." In
+order to make sense of inodes and directory entries you need to know their
+internal structure too. That is described below. Given this overall layout
+however, let's look at the step-by-step file-fetch procedure.</p>
+
+<p align="left"><b>I say "Gettysburg, " you say "Four score and
+seven..."</b></p>
+
+<p align="left">The whole purpose of a filesystem is to enable naming of data
+and making it findable by its name. I am the program, you are the filesystem. If
+I say the name of a file, you must come back with the content from your disk.
+But how do you do that? What is your "filing" system? The discussion
+in "The Linux Kernel" summarizes it:</p>
+
+<p align="left"><font face="Courier New" size="2">"A Linux filename ... 
+is a series of directory names separated by forward slashes (``/'') and 
+ending in the file's
+name. One example filename would be /home/rusling/.cshrc where /home and
+ /rusling are directory names and the file's name is
+.cshrc. ... To find the inode representing this file within an EXT2 file
+ system the system must parse the filename a directory at a time until 
+we get to the file itself.&nbsp;<br>
+<br>
+"The first inode we need is the inode for the root of the file system 
+and we find its number in the file system's
+superblock [this appears to be erroneous, the root inode is always inode
+ number
+2, but the process described here is how files are found]. To read an 
+EXT2 inode we must look for
+it in the inode table .... If, for example, the root inode number is 42,
+ then we need the 42nd inode from the inode table.... The root inode is 
+for an EXT2 directory, in other words
+... it's data blocks contain EXT2 directory entries.&nbsp;<br>
+<br>
+"home is just one of the many directory entries and this directory entry
+ gives us the number of the inode describing the /home directory. We 
+have to read this
+directory (by first reading its inode and then reading the directory 
+entries from the data blocks described by its inode) to find the rusling
+ entry which gives us the
+number of the inode describing the /home/rusling directory. Finally we 
+read the directory entries pointed at by the inode describing the
+/home/rusling directory to find the inode number of the .cshrc file and 
+from this we get the data blocks containing the information in the 
+file."</font></p>
+
+<p align="left">Let's try it using the printed dump of a sample floppy. The
+floppy was produced carefully, to make the difficult job of tracing its contents
+easier. First it was formatted, thereafter overwritten with hex zeros from start
+to finish. The ext2 filesystem (i.e., the above described structures) was then
+written onto it. Then it was given some contents: 1) a file named
+"alpha1" containing the alphabet in upper case, 2) a subdirectory
+named "somedir," and 3) a file named "alpha2" containing the
+alphabet in upper case written backwards. (Remember in this filesystem a
+directory <i>is</i> a file.) The resulting 1.4MB floppy's contents were captured
+into a file of the same size, and the file dumped. That is what you see in the
+provided dump file. In reading it, note that the dump utility (the linux od
+command) prints an asterisk to represent long stretches of unchanging, solid
+data within the diskette. In this case, stretches of solid zeros appear because
+the diskette was deliberately "zeroed" before the filesystem was
+written onto it. This makes the dump relatively compact.</p>
+
+<p align="left"><b>Getting the lay of the land</b></p>
+
+<p align="left">First of all, noting that the entire first 1024 bytes are zeros
+we can take that block to be the boot block. That means the the information
+starting at byte 1024 (the 1025th) would correspond to the superblock. Does it?
+Let's test the hypothesis. Superblock contents are specifically documented.</p>
+
+<center>
+<table x:str="" style="border-collapse: collapse; table-layout: fixed; width: 388pt;" border="0" cellpadding="0" cellspacing="0" width="516">
+ <colgroup><col style="width:48pt" span="2" width="64">
+ <col style="mso-width-source:userset;mso-width-alt:2121;width:44pt" width="58">
+ <col style="mso-width-source:userset;mso-width-alt:12068;width:248pt" width="330">
+ </colgroup><tbody><tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt; width: 48pt;" height="17" width="64">size</td>
+  <td class="xl25" style="width: 48pt;" width="64">start</td>
+  <td class="xl25" style="width: 44pt;" width="58">end</td>
+  <td class="xl24" style="width: 248pt;" width="330">Superblock</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td colspan="4" style="height: 12.75pt;" height="17"></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C2+1">1</td>
+  <td class="xl25" x:num="" x:fmla="=C2+A3">4</td>
+  <td><font color="#FF0000">Total number of inodes</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C3+1">5</td>
+  <td class="xl25" x:num="" x:fmla="=C3+A4">8</td>
+  <td><font color="#FF0000">Filesystem size in blocks</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C4+1">9</td>
+  <td class="xl25" x:num="" x:fmla="=C4+A5">12</td>
+  <td>Number of reserved blocks</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C5+1">13</td>
+  <td class="xl25" x:num="" x:fmla="=C5+A6">16</td>
+  <td>Free blocks counter</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C6+1">17</td>
+  <td class="xl25" x:num="" x:fmla="=C6+A7">20</td>
+  <td>Free inodes counter</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C7+1">21</td>
+  <td class="xl25" x:num="" x:fmla="=C7+A8">24</td>
+  <td><font color="#FF0000">Number of first useful block (always 1)</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C8+1">25</td>
+  <td class="xl25" x:num="" x:fmla="=C8+A9">28</td>
+  <td><font color="#FF0000">Block size</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C9+1">29</td>
+  <td class="xl25" x:num="" x:fmla="=C9+A10">32</td>
+  <td>Fragment size</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C10+1">33</td>
+  <td class="xl25" x:num="" x:fmla="=C10+A11">36</td>
+  <td>Number of blocks per group</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C11+1">37</td>
+  <td class="xl25" x:num="" x:fmla="=C11+A12">40</td>
+  <td>Number of fragments per group</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C12+1">41</td>
+  <td class="xl25" x:num="" x:fmla="=C12+A13">44</td>
+  <td>Number of inodes per group</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C13+1">45</td>
+  <td class="xl25" x:num="" x:fmla="=C13+A14">48</td>
+  <td>Time of last mount operation</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C14+1">49</td>
+  <td class="xl25" x:num="" x:fmla="=C14+A15">52</td>
+  <td>Time of last write operation</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C15+1">53</td>
+  <td class="xl25" x:num="" x:fmla="=C15+A16">54</td>
+  <td>Mount operations counter</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C16+1">55</td>
+  <td class="xl25" x:num="" x:fmla="=C16+A17">56</td>
+  <td>Number of mount operations before check</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C17+1">57</td>
+  <td class="xl25" x:num="" x:fmla="=C17+A18">58</td>
+  <td>Magic signature</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C18+1">59</td>
+  <td class="xl25" x:num="" x:fmla="=C18+A19">60</td>
+  <td>Status flag</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C19+1">61</td>
+  <td class="xl25" x:num="" x:fmla="=C19+A20">62</td>
+  <td>Behavior when detecting errors</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C20+1">63</td>
+  <td class="xl25" x:num="" x:fmla="=C20+A21">64</td>
+  <td>Minor revision level</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C21+1">65</td>
+  <td class="xl25" x:num="" x:fmla="=C21+A22">68</td>
+  <td>Time of last check</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C22+1">69</td>
+  <td class="xl25" x:num="" x:fmla="=C22+A23">72</td>
+  <td>Time between checks</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C23+1">73</td>
+  <td class="xl25" x:num="" x:fmla="=C23+A24">76</td>
+  <td>OS where filesystem was created</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C24+1">77</td>
+  <td class="xl25" x:num="" x:fmla="=C24+A25">80</td>
+  <td>Revision level</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C25+1">81</td>
+  <td class="xl25" x:num="" x:fmla="=C25+A26">82</td>
+  <td>Default user ID for reserved blocks</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C26+1">83</td>
+  <td class="xl25" x:num="" x:fmla="=C26+A27">84</td>
+  <td>Default group ID for reserved blocks</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C27+1">85</td>
+  <td class="xl25" x:num="" x:fmla="=C27+A28">88</td>
+  <td><font color="#FF0000">Number of first nonreserved inode</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C28+1">89</td>
+  <td class="xl25" x:num="" x:fmla="=C28+A29">90</td>
+  <td><font color="#FF0000">Size of on-disk inode structure</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C29+1">91</td>
+  <td class="xl25" x:num="" x:fmla="=C29+A30">92</td>
+  <td>Block group number of this superblock</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C30+1">93</td>
+  <td class="xl25" x:num="" x:fmla="=C30+A31">96</td>
+  <td>Compatible features bitmap</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C31+1">97</td>
+  <td class="xl25" x:num="" x:fmla="=C31+A32">100</td>
+  <td>Incompatible features bitmap</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C32+1">101</td>
+  <td class="xl25" x:num="" x:fmla="=C32+A33">104</td>
+  <td>Read-only-compatible features bitmap</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">16</td>
+  <td class="xl25" x:num="" x:fmla="=C33+1">105</td>
+  <td class="xl25" x:num="" x:fmla="=C33+A34">120</td>
+  <td>128-bit filesystem identifier</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">16</td>
+  <td class="xl25" x:num="" x:fmla="=C34+1">121</td>
+  <td class="xl25" x:num="" x:fmla="=C34+A35">136</td>
+  <td>Volume name</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">64</td>
+  <td class="xl25" x:num="" x:fmla="=C35+1">137</td>
+  <td class="xl25" x:num="" x:fmla="=C35+A36">200</td>
+  <td>Path of last mount point</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C36+1">201</td>
+  <td class="xl25" x:num="" x:fmla="=C36+A37">204</td>
+  <td>Used for compression</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">1</td>
+  <td class="xl25" x:num="" x:fmla="=C37+1">205</td>
+  <td class="xl25" x:num="" x:fmla="=C37+A38">205</td>
+  <td>Number of blocks to preallocate</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">1</td>
+  <td class="xl25" x:num="" x:fmla="=C38+1">206</td>
+  <td class="xl25" x:num="" x:fmla="=C38+A39">206</td>
+  <td>Number of blocks to preallocate for directories</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">818</td>
+  <td class="xl25" x:num="" x:fmla="=C39+1">207</td>
+  <td class="xl25" x:num="" x:fmla="=C39+A40">1024</td>
+  <td>Nulls to pad out 1024 bytes</td>
+ </tr>
+ <!--[if supportMisalignedColumns]-->
+ <tr style="display: none;" height="0">
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td style="width: 248pt;" width="330"></td>
+ </tr>
+ <!--[endif]-->
+</tbody></table>
+</center>
+
+<p align="left">Notice it says "always 1" for the value of the
+"Number of first useful block" field. And that this field occupies the
+21st through 24th byes of a superblock structure. So if we think our diskette's
+superblock starts at its byte 1024, we had better find "1" when we
+advance 21 bytes and examine bytes 1044 through 1047. Find those bytes. They
+contain "01 00 00 00." That's encouraging. So let's suppose this data
+at byte 1024 of the diskette <i>is </i>its superblock and evaluate its first
+several ostensible fields to confirm or deny our supposition. All the first
+several superblock fields are 4 bytes in size. So taking 4 bytes at a time from
+the diskette would align the following data with the following superblock
+fields:</p>
+
+<table x:str="" style="border-collapse: collapse; table-layout: fixed;" border="0" cellpadding="0" cellspacing="0" width="541">
+ <tbody><tr style="height: 12.75pt;" height="17">
+  <td width="329">Total number of inodes</td>
+  <td width="456">b8 00 00 00 = 000000b8 = 184 decimal</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td width="329">Filesystem size in blocks</td>
+  <td width="456">a0 05 00 00 = 000005a0 = 1440</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td width="329">Number of reserved blocks</td>
+  <td width="456">48 00 00 00 = 00000048 = 72</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td width="329">Free blocks counter</td>
+  <td width="456">74 05 00 00 = 00000574 = 1396</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td width="329">Free inodes counter</td>
+  <td width="456">aa 00 00 00 = 000000aa = 170</td>
+ </tr>
+</tbody></table>
+<p align="left">You can convert these to decimal values if you understand that
+they are hexadecimal values, least significant to the left and most significant
+to the right. So the five hex numbers represented here are 000000b8, 000005a0,
+00000048, 00000574, and 000000aa. If you convert them to decimal you get 184,
+1440, 72, 1396, and 170. Sensible or not? Well there are 184 inodes. We aren't
+in a position to judge because we have no idea what number of inodes a diskette
+ought to have. And there are 1440 blocks. By contrast this is meaningful to us,
+because we are familiar with diskettes. We do know their capacity is supposed to
+be 1.44 megabytes and that's what this appears to say. This quite strongly
+confirms the likelihood that here at the floppy's byte 1024 we do indeed have
+its superblock. Among the remaining 3 numbers it's notable that there should be
+1396 free blocks and 170 free inodes. Since this is a largely empty diskette,
+1396 free out of 1440, or 170 free out of 184, is definitely reasonable. It's
+safe to say we've located the superblock. It will help us locate other things.
+One thing important to locate would be the inodes for all the files, but the
+superblock content doesn't make it obvious where they are. So let's look
+further.</p>
+
+<p align="left">The next chunk of the diskette is the "Group
+Descriptor." Here's it's layout:</p>
+
+<center>
+<table x:str="" style="border-collapse: collapse; table-layout: fixed; width: 388pt;" border="0" cellpadding="0" cellspacing="0" width="516">
+ <tbody><tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt; width: 48pt;" height="17" width="64"></td>
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td class="xl24" style="width: 248pt;" width="330">Group Descriptor</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td colspan="4" style="height: 12.75pt;" height="17"></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C2+1">1</td>
+  <td class="xl25" x:num="" x:fmla="=C2+A3">4</td>
+  <td>Block number of block bitmap</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C3+1">5</td>
+  <td class="xl25" x:num="" x:fmla="=C3+A4">8</td>
+  <td>Block number of inode bitmap</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C4+1">9</td>
+  <td class="xl25" x:num="" x:fmla="=C4+A5">12</td>
+  <td><font color="#FF0000">Block number of first inode table block</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C5+1">13</td>
+  <td class="xl25" x:num="" x:fmla="=C5+A6">14</td>
+  <td>Number of free blocks in the group</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C6+1">15</td>
+  <td class="xl25" x:num="" x:fmla="=C6+A7">16</td>
+  <td>Number of free inodes in the group</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C7+1">17</td>
+  <td class="xl25" x:num="" x:fmla="=C7+A8">18</td>
+  <td>Number of directories in the group</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">2</td>
+  <td class="xl25" x:num="" x:fmla="=C8+1">19</td>
+  <td class="xl25" x:num="" x:fmla="=C8+A9">20</td>
+  <td>Alignment to word</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td class="xl25" style="height: 12.75pt;" x:num="" height="17">4</td>
+  <td class="xl25" x:num="" x:fmla="=C9+1">21</td>
+  <td class="xl25" x:num="" x:fmla="=C9+A10">24</td>
+  <td>Nulls to pad out 24 bytes</td>
+ </tr>
+ <!--[if supportMisalignedColumns]-->
+ <tr style="display: none;" height="0">
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td style="width: 248pt;" width="330"></td>
+ </tr>
+ <!--[endif]-->
+</tbody></table>
+</center><p align="left">The important one here is the 3rd field, "Block
+number of the first inode table block." The inode table is the collection
+of all the inodes. It occupies multiple consecutive blocks on the disk and this
+indicates which block is the first of these. In order to read the Group
+Descriptor's 3rd field, we first have to locate the Group Descriptor itself.
+Let's take the super"block" at its word and assume it's exactly one
+block in size. We know where it starts, and that the Group Descriptor follows
+it, so what is the size of a block? That info is embedded in the superblock.
+It's the superblock's 7th field, which sits at the superblock's bytes 25-28.
+Read it. You'll be disappointed. Because it contains 00 00 00 00. That means our
+block size is zero, which is impossible, or our superblock is bogus. Or, we just
+don't know how to read this entry. It turns out that this "field expresses
+the block size as a power of 2, using 1024 bytes as the unit. Thus, 0 denotes
+1024-byte blocks, 1 denotes 2048-byte blocks, and so on." (<u>Understanding
+the Linux Kernel,</u> Bovet and Cesati). Good. So the superblock, which starts
+at byte 1024 is one block in size. One block is 1024 bytes. So the block after
+the superblock starts at byte 2048. The block after the superblock is the group
+descriptor. So the group descriptor starts at byte 2048. And now you can find
+its "Block number of first inode table block" field, and observe it
+contains 05 00 00 00. This represents the hex number 00000005, which is the
+number 5. The inode table starts in block 5.</p>
+
+<p align="left">It will be useful to be able to locate each block by its labeled
+byte position in the dump. It seems that the first block which we call block 0
+starts with byte 0000000 in the dump (which gives these diskette offset numbers
+in decimal). And the next one, block 1, starts with byte 0001024. Then the one
+after, block 2, would start at 0002048 and in general</p>
+
+<p align="left">&nbsp;&nbsp;&nbsp; block n starts at byte (n x 1024)</p>
+
+<p align="left">It would be a good idea to label the dump with numbers in the
+left margin for each of the blocks it shows. Any offset that is a multiple of
+1024 marks the starting point of a block, and you divide the offset by 1024 to
+get the block's number. Label it with that number.</p>
+<p align="left">Now have a look at the place you labeled "5." That was
+next to offset 0005120 in the dump. That's the beginning of the inode table and
+of the first inode in it. How far does this inode table go? Well, if we know the
+number of inodes in it and the size of each we can figure it out. Do we? We saw
+already there appear to be 184 inodes (superblock's first field). And the
+superblock also contains a "Size of on-disk inode structure" field.
+Two bytes at offset 89 within the superblock. In our dump, where superblock's
+1st byte is labeled 1024, its 89th (88 higher) is at position1112 (88 higher) by
+the labels. There and in the ensuing byte we find 80 00.
+That means hex 0080 or decimal 128. Inode table therefore is 128 x 184 (or
+23552) bytes in size. Starting as it does at diskette offset 5120, it goes up to
+(but not including) 5120 + 23552 or 0028672. That's the place you labeled 28. So
+the inode table occupies blocks 5 through 27 inclusive (most of which is empty,
+full of zeros according to the dump).</p>
+<p align="left">In addition to numbering the diskette's blocks, you should
+number the inode table's inodes. Or at least those several that are shown. Mark
+them down, every 128 bytes starting with 1 at 5120, 2 at 5248, and so on. In
+general the formula is:</p>
+<p align="left">&nbsp;&nbsp;&nbsp; diskette offset = 5120 + (n-1) x 128</p>
+<p align="left">or equivalently</p>
+<p align="left">&nbsp;&nbsp;&nbsp; n = (diskette offset -5120)/128 + 1</p>
+<p align="left">where n is the inode's number and diskette offset is its
+position in the dump. The highest inode you'll mark (given the gaps in the dump
+where there are nothing but zeros) is number 14 at diskette offset 006784.</p>
+<p align="left">Now that you have brought order out of chaos by locating and
+labeling the blocks and inodes, you can use the dump in the same way as would a
+filesystem driver to locate and read a file.</p>
+<p align="left"><b>Finding a file</b></p>
+<p align="left">Let's find the file alpha1, or more literally let's find
+ its
+contents (the alphabet A through Z) given its name. The above summary 
+from
+"The Linux Kernel" gives us our starting point, "The first inode we need
+ is the inode for the root of the file system and we find its number in 
+the file system's superblock."
+That last part is not actually correct. It turns out, the root's inode 
+is always
+inode 2. This information is not documented in several sources I used 
+for this
+investigation, but a former student searched the web and found several
+references indicating block 2 (e.g., <a href="http://linuxgazette.net/issue21/ext2.html">http://linuxgazette.net/issue21/ext2.html</a>).
+Additionally, the linux "stat"&nbsp; utility, which prints out inode
+contents, gives the following:</p>
+<p align="left">[wright@sputnik wright]$ stat /&nbsp;<br>
+<b><font color="#FF0000">  File: "/"</font></b>&nbsp;<br>
+  Size: 4096         Allocated Blocks: 8            Filetype: Directory&nbsp;<br>
+  Mode: (0755/drwxr-xr-x)         Uid: (    0/    root)  Gid: (    0/    root)&nbsp;<br>
+Device:  3,1 <b><font color="#FF0000">   Inode: 2</font></b>         Links: 22&nbsp;<br>
+Access: Thu Dec  6 09:13:40 2001&nbsp;<br>
+Modify: Tue Oct 23 13:39:21 2001&nbsp;<br>
+Change: Tue Oct 23 13:39:21 2001</p>
+<p align="left">In other words, the inode for the "file" / is 2. /
+means root directory. (Note also that it, though a directory, is treated as a
+file. Directories <i>are</i> files in this filesystem. They do not differ from
+other files in structure; the difference lies in their content.) So
+the inode for the file which <i>is </i>the root directory is inode 2. Go to inode
+2, where you marked it before. Can't read it,
+can you? Here's some help:</p>
+<center>
+<table x:str="" style="border-collapse: collapse; table-layout: fixed; width: 432pt;" border="0" cellpadding="0" cellspacing="0" width="574">
+ <tbody><tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt; width: 48pt;" height="17" width="64"></td>
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td class="xl24" style="width: 248pt;" width="330">Inode</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td colspan="2" style="height: 12.75pt;" height="17"></td>
+  <td class="xl25"></td>
+  <td colspan="2" style=""></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">2</td>
+  <td x:num="" x:fmla="=C2+1" align="right">1</td>
+  <td x:num="" x:fmla="=C2+A3" align="right">2</td>
+  <td></td>
+  <td>File type and access rights</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">2</td>
+  <td x:num="" x:fmla="=C3+1" align="right">3</td>
+  <td x:num="" x:fmla="=C3+A4" align="right">4</td>
+  <td></td>
+  <td>Owner identification</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C4+1" align="right">5</td>
+  <td x:num="" x:fmla="=C4+A5" align="right">8</td>
+  <td></td>
+  <td><font color="#FF0000">File length in bytes</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C5+1" align="right">9</td>
+  <td x:num="" x:fmla="=C5+A6" align="right">12</td>
+  <td></td>
+  <td>Time of last file access</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C6+1" align="right">13</td>
+  <td x:num="" x:fmla="=C6+A7" align="right">16</td>
+  <td></td>
+  <td>Time that inode last changed</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C7+1" align="right">17</td>
+  <td x:num="" x:fmla="=C7+A8" align="right">20</td>
+  <td></td>
+  <td>Time that file contents last changed</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C8+1" align="right">21</td>
+  <td x:num="" x:fmla="=C8+A9" align="right">24</td>
+  <td></td>
+  <td>Time of file deletion</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">2</td>
+  <td x:num="" x:fmla="=C9+1" align="right">25</td>
+  <td x:num="" x:fmla="=C9+A10" align="right">26</td>
+  <td></td>
+  <td>Group identifier</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">2</td>
+  <td x:num="" x:fmla="=C10+1" align="right">27</td>
+  <td x:num="" x:fmla="=C10+A11" align="right">28</td>
+  <td></td>
+  <td>Hard links counter</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C11+1" align="right">29</td>
+  <td x:num="" x:fmla="=C11+A12" align="right">32</td>
+  <td></td>
+  <td>Number of data blocks of the file</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C12+1" align="right">33</td>
+  <td x:num="" x:fmla="=C12+A13" align="right">36</td>
+  <td></td>
+  <td>File flags</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C13+1" align="right">37</td>
+  <td x:num="" x:fmla="=C13+A14" align="right">40</td>
+  <td></td>
+  <td>Specific operating system information</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C14+1" align="right">41</td>
+  <td x:num="" x:fmla="=C14+A15" align="right">44</td>
+  <td></td>
+  <td><font color="#FF0000">Pointer to first data block</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">56</td>
+  <td x:num="" x:fmla="=C15+1" align="right">45</td>
+  <td x:num="" x:fmla="=C15+A16" align="right">100</td>
+  <td></td>
+  <td>14 more pointers to data blocks</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C16+1" align="right">101</td>
+  <td x:num="" x:fmla="=C16+A17" align="right">104</td>
+  <td></td>
+  <td>File version (for NFS)</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C17+1" align="right">105</td>
+  <td x:num="" x:fmla="=C17+A18" align="right">108</td>
+  <td></td>
+  <td>File access control list</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C18+1" align="right">109</td>
+  <td x:num="" x:fmla="=C18+A19" align="right">112</td>
+  <td></td>
+  <td>Directory access control list</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C19+1" align="right">113</td>
+  <td x:num="" x:fmla="=C19+A20" align="right">116</td>
+  <td></td>
+  <td>Fragment address</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">8</td>
+  <td x:num="" x:fmla="=C20+1" align="right">117</td>
+  <td x:num="" x:fmla="=C20+A21" align="right">124</td>
+  <td></td>
+  <td>Specific operating system information</td>
+ </tr>
+ <!--[if supportMisalignedColumns]-->
+ <tr style="display: none;" height="0">
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td style="width: 248pt;" width="330"></td>
+ </tr>
+ <!--[endif]-->
+</tbody></table>
+</center>
+<p align="left">Locate the "Pointer to first data block." It reads 1c
+00 00 00, or decimal 28. This says that the content of the directory
+is in block 28. Go to block 28. In it you see "alpha1" and "somedir."
+Looks like the content of the root directory alright. This calls for our last
+structure table, that of an ext2 directory entry:</p>
+<center>
+<table x:str="" style="border-collapse: collapse; table-layout: fixed; width: 432pt;" border="0" cellpadding="0" cellspacing="0" width="574">
+ <tbody><tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt; width: 48pt;" height="17" width="64">size</td>
+  <td style="width: 48pt;" width="64">start</td>
+  <td style="width: 44pt;" width="58">end</td>
+  <td style="width: 44pt;" width="58"></td>
+  <td class="xl24" style="width: 248pt;" width="330">Directory Entry</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td colspan="5" style="height: 12.75pt;" height="17"></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">4</td>
+  <td x:num="" x:fmla="=C2+1" align="right">1</td>
+  <td x:num="" x:fmla="=C2+A3" align="right">4</td>
+  <td></td>
+  <td><font color="#FF0000">Inode number</font></td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">2</td>
+  <td x:num="" x:fmla="=C3+1" align="right">5</td>
+  <td x:num="" x:fmla="=C3+A4" align="right">6</td>
+  <td></td>
+  <td>This directory entry's length</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">1</td>
+  <td x:num="" x:fmla="=C4+1" align="right">7</td>
+  <td x:num="" x:fmla="=C4+A5" align="right">7</td>
+  <td></td>
+  <td>File name length</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" x:num="" height="17" align="right">1</td>
+  <td x:num="" x:fmla="=C5+1" align="right">8</td>
+  <td x:num="" x:fmla="=C5+A6" align="right">8</td>
+  <td></td>
+  <td>File type (1=regular file 2=directory)</td>
+ </tr>
+ <tr style="height: 12.75pt;" height="17">
+  <td style="height: 12.75pt;" height="17"></td>
+  <td x:num="" x:fmla="=C6+1" align="right">9</td>
+  <td>?</td>
+  <td></td>
+  <td><font color="#FF0000">File name</font></td>
+ </tr>
+ <!--[if supportMisalignedColumns]-->
+ <tr style="display: none;" height="0">
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 48pt;" width="64"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td style="width: 44pt;" width="58"></td>
+  <td style="width: 248pt;" width="330"></td>
+ </tr>
+ <!--[endif]-->
+</tbody></table>
+</center>
+<p align="left">The key here is that when you've located the file's name in the
+directory, you can access its inode number by backing up 8 bytes. So for file
+alpha1, the inode number is 0c 00 00 00 or decimal 12. Go look at the inode you
+marked "12" earlier (starts at 0006528). Among other things its file
+length field (1b 00 00 00) indicates a 27-byte file. That would be the alphabet
+plus one. The extra byte is a linefeed or so-called "end-of-file"
+character, a hex 0a. Reassuring. But, getting down to the buisness of locating
+the file, the pointer to the first (and only) data block contains 29 00 00 00 or
+decimal 41. Slide down to the block you marked 41 earlier (at offset 0041984).
+There you see the alphabet.</p>
+<p align="left">Let's recapitulate how to find a file. First we had to visit the superblock
+and group descriptor to map the layout of the structure superimposed on this
+diskette. That's not actually part of finding a file. The structure is a given,
+and a known, once you know it. So this was a one-time process for us. Now that
+we know the layout, finding a file using it is something we'll do time and time
+again. That process consists of:</p>
+<ul>
+  <li>
+    <p align="left">visiting the <i>inode</i> for the root directory (inode 2) to get the
+    location of the <i>data</i> for the root directory</p></li>
+  <li>
+    <p align="left">visiting the data for the root directory to find the
+    directory entry for alpha1</p></li>
+  <li>
+    <p align="left">visiting the entry for alpha1 to get the location of the
+    inode for alpha1</p></li>
+  <li>
+    <p align="left">visiting the inode for alpha1 to get the location of the
+    data for alpha1</p></li>
+  <li>
+    <p align="left">visiting the data of alpha1 (the alphabet)</p></li>
+</ul>
+<p align="left">&nbsp;You have now performed the job of the filesystem driver
+for the ext2 filesystem. The difference is, it can do it fast.</p>
+
+
+
+
+</body></html>
