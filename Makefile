@@ -1,19 +1,10 @@
 CC=gcc
 CFLAGS=-c -Wall
 
-all: ext cp
+all: ext-shell
 
-ext: ext.o
-	$(CC) ext.o -o ext
-
-cp: cp.o
-	$(CC) cp.o -o cp
-
-ext.o: ext.c
-	$(CC) $(CFLAGS) ext.c
-
-cp.o: cp.c
-	$(CC) $(CFLAGS) cp.c
+ext-shell: ext-shell.o
+	$(CC) ext-shell.o -o ext-shell
 
 clean:
-	rm -rf *.o ext cp
+	rm -rf *.o ext-shell
