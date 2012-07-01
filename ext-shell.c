@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #include "inc/types.h"
 #include "inc/superblock.h"
@@ -19,13 +20,11 @@
 #include "inc/inode.h"
 #include "inc/directoryentry.h"
 
-//#define DEBUG
+#define DEBUG 0 
 
-#ifdef DEBUG
-#define debug printf
-#else
-#define debug // 
-#endif
+#define debug(fmt, ...) \
+            do { if (DEBUG) printf("<debug> "fmt, __VA_ARGS__); } while (0)
+
 
 struct os_superblock_t *superblock;
 struct os_blockgroup_descriptor_t *blockgroup;
@@ -51,8 +50,9 @@ void read_blockgroup(int fd)
 
 void read_inodeTable(int fd)
 {
+#if 0
 	int i;
-
+#endif
 	// preparing to cache inode table in inodes
 	inodes = (struct os_inode_t*)malloc(superblock->s_inodes_count*superblock->s_inode_size);
 	assert(inodes != NULL);
@@ -144,7 +144,7 @@ int findInodeByName(int fd, int base_inode_num, char* filename, int filetype)
 	int curr_inode_num;
 	int curr_inode_type;
 
-	debug("data block addr \t= 0x%x\n", inodes[base_inode_num-1].i_block[0]);
+	debug("data block addr\t= 0x%x\n", inodes[base_inode_num-1].i_block[0]);
 
 	struct os_direntry_t* dirEntry = malloc(sizeof(struct os_direntry_t));
 	assert (dirEntry != NULL);
@@ -197,7 +197,7 @@ void ls(int fd, int base_inode_num)
 	int curr_inode_num;
 	int curr_inode_type;
 
-	debug("data block addr \t= 0x%x\n\n", inodes[base_inode_num-1].i_block[0]);
+	debug("data block addr\t= 0x%x\n", inodes[base_inode_num-1].i_block[0]);
 
 	struct os_direntry_t* dirEntry = malloc(sizeof(struct os_direntry_t));
 	assert (dirEntry != NULL);
@@ -282,7 +282,7 @@ int extShell(int fd )
 	printf("ext-shell$ ");
 	scanf("%s", cmd);
 
-	debug("\ncmd=%s\n", cmd);
+	debug("cmd=%s\n", cmd);
 
 	if(!strcmp(cmd, "q")) {
 		return(-1);
@@ -298,13 +298,14 @@ int extShell(int fd )
 
 	} else {
 		printf("Unknown command: %s\n", cmd);
+		return(-EINVAL);
 	}
+
+	return(0);
 }
 
 int main(int argc, char **argv)
 {
-	int ls_inode = 2;
-
 	// open up the disk file
 	if (argc !=2) {
 	printf("usage:  ext-shell <file.img>\n");
@@ -315,10 +316,6 @@ int main(int argc, char **argv)
 	if (fd == -1) {
 		printf("Could NOT open file \"%s\"\n", argv[1]);
 		return -1; 
-	}
-
-	if (argv[2]) {
-		ls_inode = atoi(argv[2]);
 	}
 
 	// reading superblock
@@ -336,11 +333,14 @@ int main(int argc, char **argv)
 	read_inodeTable(fd);
 
 	while(1) {
-		// single_cmd waits for one cmd and executes it.
-		// returns 0 if cmd="quit"
-		if (extShell(fd)==-1)
+		// extShell waits for one cmd and executes it.
+		// returns 0 on successfull execution of command,
+		// returns -EINVAL on unknown command
+		// returns -1 if cmd="q" i.e. quit.
+		if ( extShell(fd)==-1 )
 			break;
 	}
 
 	printf("\n\nQuitting ext-shell.\n\n");
+	return(0);
 }

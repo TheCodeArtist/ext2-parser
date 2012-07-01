@@ -36,7 +36,7 @@ $ make clean
 ==========================
 $ ./ext-shell <ext-file.img>
 
-Ext-shell is an interatcive shell to handle ext filesystems. The above command
+Ext-shell is an interactive shell to handle ext filesystems. The above command
  loads the img file in RD_ONLY mode. It will parse the superblock and
  inode-table and print basic info about the filesystem contained in the img
  file. It then displays the ext-shell prompt and waits for user input.
