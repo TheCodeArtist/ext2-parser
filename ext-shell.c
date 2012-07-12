@@ -22,8 +22,8 @@
 
 #define DEBUG 0 
 
-#define debug(fmt, ...) \
-            do { if (DEBUG) printf("<debug> "fmt, __VA_ARGS__); } while (0)
+#define debug(...) \
+            do { if (DEBUG) printf("<debug> " __VA_ARGS__); } while (0)
 
 
 struct os_superblock_t *superblock;
