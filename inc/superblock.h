@@ -161,6 +161,13 @@ struct os_superblock_t {
   // filesystem was not unmounted cleanly, and likely has errors
   os_uint16_t s_state;
 
+  // what the file system driver should do when an error is detected.
+  // The following values have been defined:
+  // EXT2_ERRORS_CONTINUE 	= 1	= continue as if nothing happened
+  // EXT2_ERRORS_RO		= 2	= remount read-only
+  // EXT2_ERRORS_PANIC		= 3	= cause a kernel panic
+  os_uint16_t s_errors;
+
   // ext2 file system version information -- minor revision level
   os_uint16_t s_minor_rev_level;
 
