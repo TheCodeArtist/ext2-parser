@@ -22,7 +22,7 @@ typedef int os_bool_t;
 #endif
 
 // explicitly-sized versions of integer types
-typedef __signed char os_int8_t;
+typedef signed char os_int8_t;
 typedef unsigned char os_uint8_t;
 typedef short os_int16_t;
 typedef unsigned short os_uint16_t;
