@@ -1,165 +1,172 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html lang="en_US"><head>
-<meta http-equiv="content-type" content="text/html; charset=UTF-8">
-<meta name="author" content="Carlo Wood">
-<meta name="keywords" content="undelete, recover, ext3">
-<title>HOWTO undelete removed files and directories on an ext3 file system</title>
-<link href="undelete_ext3_files/common.css" rel="stylesheet" type="text/css">
-<link href="undelete_ext3_files/howto.css" rel="stylesheet" type="text/css">
+<html lang="en_US">
+
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="author" content="Carlo Wood">
+  <meta name="keywords" content="undelete, recover, ext3">
+  <title>HOWTO undelete removed files and directories on an ext3 file system</title>
+  <link href="undelete_ext3_files/common.css" rel="stylesheet" type="text/css">
+  <link href="undelete_ext3_files/howto.css" rel="stylesheet" type="text/css">
 </head>
 
 <body>
 
-<div id="content">
+  <div id="content">
 
-<h1>HOWTO recover deleted files on an ext3 file system</h1>
+    <h1>HOWTO recover deleted files on an ext3 file system</h1>
 
-<div id="date">Carlo Wood, Mar 2008</div>
+    <div id="date">Carlo Wood, Mar 2008</div>
 
-<h2>Introduction</h2>
+    <h2>Introduction</h2>
 
-<p>It happens to everyone sooner or later: a split second after you hit Enter you realize
-your mistake, but it's too late; you just deleted a valuable file or directory for
-which no backup exists. Or maybe you have a backup, but it's a month old...
-and in shock you see the past month flash before your eyes as you realize in pain
-what you'll have to do all over again...</p>
+    <p>It happens to everyone sooner or later: a split second after you hit Enter you realize
+      your mistake, but it's too late; you just deleted a valuable file or directory for
+      which no backup exists. Or maybe you have a backup, but it's a month old...
+      and in shock you see the past month flash before your eyes as you realize in pain
+      what you'll have to do all over again...</p>
 
-<p>Fortunately, you remember that files are never <em>really</em> deleted, at most
-overwritten by new content. So, you remount the disk read-only as fast as possible.
-But now?</p>
+    <p>Fortunately, you remember that files are never <em>really</em> deleted, at most
+      overwritten by new content. So, you remount the disk read-only as fast as possible.
+      But now?</p>
 
-<p>If you Google for "undelete ext3", almost every article you find will be
-users asking if it's possible and the answer is every time: no.</p>
+    <p>If you Google for "undelete ext3", almost every article you find will be
+      users asking if it's possible and the answer is every time: no.</p>
 
-<p>The most frequently quoted passage comes from the <a href="http://batleth.sapienti-sat.org/projects/FAQs/ext3-faq.html">ext3 FAQ</a> itself:</p>
+    <p>The most frequently quoted passage comes from the <a
+        href="http://batleth.sapienti-sat.org/projects/FAQs/ext3-faq.html">ext3 FAQ</a> itself:</p>
 
-<div class="quote">
-<p>Q: How can I recover (undelete) deleted files from my ext3 partition?</p>
-<p>Actually, you can't! This is what one of the developers, Andreas Dilger, said about it:</p>
+    <div class="quote">
+      <p>Q: How can I recover (undelete) deleted files from my ext3 partition?</p>
+      <p>Actually, you can't! This is what one of the developers, Andreas Dilger, said about it:</p>
 
-<p><i>In order to ensure that ext3 can safely resume an unlink after a 
-crash, it actually zeros out the block pointers in the inode, whereas
-ext2 just marks these blocks as unused in the block bitmaps and marks 
-the inode as "deleted" and leaves the block pointers alone.</i></p>
+      <p><i>In order to ensure that ext3 can safely resume an unlink after a
+          crash, it actually zeros out the block pointers in the inode, whereas
+          ext2 just marks these blocks as unused in the block bitmaps and marks
+          the inode as "deleted" and leaves the block pointers alone.</i></p>
 
-<p><i>Your only hope is to "grep" for parts of your files that have been deleted and hope for the best.</i></p>
-</div>
+      <p><i>Your only hope is to "grep" for parts of your files that have been deleted and hope for the best.</i></p>
+    </div>
 
-<p>However, this is not necessarily true.
-<em>All</em> information might still be there, also the block pointers.
-It is just less likely that those are still there (than on ext2),
-since they have to be recovered from the journal.
-On top of that, the meta data is less coherently related to the real
-data so that heuristic algorithms are needed to find things back.
-Every time a file is accessed, it's Access Time is changed, and it's
-inode is written to disk, along with 31 other inodes that reside in
-the same block. When that happens, a copy of that block is written
-to the journal. Therefore, if your partition isn't too large compared
-to your journal, and if you at least recently accessed the files you
-want to recover, you might be able to recover the block pointers from
-the journal.</p>
+    <p>However, this is not necessarily true.
+      <em>All</em> information might still be there, also the block pointers.
+      It is just less likely that those are still there (than on ext2),
+      since they have to be recovered from the journal.
+      On top of that, the meta data is less coherently related to the real
+      data so that heuristic algorithms are needed to find things back.
+      Every time a file is accessed, it's Access Time is changed, and it's
+      inode is written to disk, along with 31 other inodes that reside in
+      the same block. When that happens, a copy of that block is written
+      to the journal. Therefore, if your partition isn't too large compared
+      to your journal, and if you at least recently accessed the files you
+      want to recover, you might be able to recover the block pointers from
+      the journal.</p>
 
-<p>On February 7th, 2008, I accidently deleted my whole home directory: over 3 GB of data, deleted with <code>rm -rf</code>.
-The only backup that I had was from June 2007. Not being able to undelete was <em>unacceptable</em>. So, I ignored what
-everyone tried to tell me and started to learn how an ext3 file system really works, and what <em>exactly</em>
-happens when files are deleted...</p>
+    <p>On February 7th, 2008, I accidently deleted my whole home directory: over 3 GB of data, deleted with <code>rm
+        -rf</code>.
+      The only backup that I had was from June 2007. Not being able to undelete was <em>unacceptable</em>. So, I ignored
+      what
+      everyone tried to tell me and started to learn how an ext3 file system really works, and what <em>exactly</em>
+      happens when files are deleted...</p>
 
-<p>Three weeks and nearly 5000 lines of code later, I had recovered every file on my disk.</p>
+    <p>Three weeks and nearly 5000 lines of code later, I had recovered every file on my disk.</p>
 
-<h2>What You Should Know Before You Begin</h2>
+    <h2>What You Should Know Before You Begin</h2>
 
-<p>The tool that I wrote assumes a spike of <em>recently</em> deleted files (shortly before the last unmount).
-It does NOT deal with a corrupted file system, only with accidently deleted files.</p>
+    <p>The tool that I wrote assumes a spike of <em>recently</em> deleted files (shortly before the last unmount).
+      It does NOT deal with a corrupted file system, only with accidently deleted files.</p>
 
-<p>Also, the program is in a beta stage: the development of the program was
-done as a hack, solely aimed at recovering my own data. After I recovered
-my data I have continued development for one more month to address bugs that
-didn't show in my case, but over all the program isn't as robust as it could be.
-Therefore, it is likely that things might not work entirely out-of-the-box for you.
-I stashed the program with <code>asserts</code>, which makes it likely that if
-something doesn't work for you then the program will abort instead of trying to
-gracefully recover. In that case you will have to dig deeper, and finish the
-program yourself, so to say.</p>
+    <p>Also, the program is in a beta stage: the development of the program was
+      done as a hack, solely aimed at recovering my own data. After I recovered
+      my data I have continued development for one more month to address bugs that
+      didn't show in my case, but over all the program isn't as robust as it could be.
+      Therefore, it is likely that things might not work entirely out-of-the-box for you.
+      I stashed the program with <code>asserts</code>, which makes it likely that if
+      something doesn't work for you then the program will abort instead of trying to
+      gracefully recover. In that case you will have to dig deeper, and finish the
+      program yourself, so to say.</p>
 
-<p>The program only needs read access to the file system with the deleted files:
-it does not attempt to recover the files. Instead, it allows you to make a copy
-of deleted files and writes those to a newly created directory tree in the
-<em>current directory</em> (which obviously should be a different file system).
-All paths are relative to the root of the partion,
-thus— if you are analysing a partition <code>/dev/md5</code> which was
-mounted under <code>/home</code>, then <code>/home</code> is unknown to the
-partition and to the program and therefore not part of the path(s). Instead,
-a path will be something like for example "carlo/c++/foo.cc", without
-leading slash. The parition root (<code>/home</code> in the example) is
-the <em>empty</em> string, not '/'.</p>
+    <p>The program only needs read access to the file system with the deleted files:
+      it does not attempt to recover the files. Instead, it allows you to make a copy
+      of deleted files and writes those to a newly created directory tree in the
+      <em>current directory</em> (which obviously should be a different file system).
+      All paths are relative to the root of the partion,
+      thus— if you are analysing a partition <code>/dev/md5</code> which was
+      mounted under <code>/home</code>, then <code>/home</code> is unknown to the
+      partition and to the program and therefore not part of the path(s). Instead,
+      a path will be something like for example "carlo/c++/foo.cc", without
+      leading slash. The parition root (<code>/home</code> in the example) is
+      the <em>empty</em> string, not '/'.</p>
 
-<p>The name of the program, <code>ext3grep</code> was chosen because I was
-planning to write a highly intelligent program that would be able to
-reconstruct files by searching for blocks that looked <em>similar</em>
-to expected blocks (based on an old backup, or other rules). The <em>grep</em>
-in the name was in anticipation that the quote from the ext3 developer
-was true: I was preparing for the need to work with sets of blocks, each
-set corresponding to a search pattern and weighted with a likeliness, upon
-which then one would have to work with set operators in order to reduce
-the number of blocks and assign them to files, and give them their order.
-However, nothing like it turned out to be needed. Nevertheless,
-I kept the name <code>ext3grep</code> because someone might want to add
-a true <code>grep</code>-like functionality to the program (at this
-moment it's grep-functionality is limited to fixed strings, printing
-matching block numbers to standard output).</p>
+    <p>The name of the program, <code>ext3grep</code> was chosen because I was
+      planning to write a highly intelligent program that would be able to
+      reconstruct files by searching for blocks that looked <em>similar</em>
+      to expected blocks (based on an old backup, or other rules). The <em>grep</em>
+      in the name was in anticipation that the quote from the ext3 developer
+      was true: I was preparing for the need to work with sets of blocks, each
+      set corresponding to a search pattern and weighted with a likeliness, upon
+      which then one would have to work with set operators in order to reduce
+      the number of blocks and assign them to files, and give them their order.
+      However, nothing like it turned out to be needed. Nevertheless,
+      I kept the name <code>ext3grep</code> because someone might want to add
+      a true <code>grep</code>-like functionality to the program (at this
+      moment it's grep-functionality is limited to fixed strings, printing
+      matching block numbers to standard output).</p>
 
-<h2>How Does EXT3 Store Files?</h2>
+    <h2>How Does EXT3 Store Files?</h2>
 
-<h3>Block sizes</h3>
+    <h3>Block sizes</h3>
 
-<p>The content of files is stored in contiguous blocks of 4096 bytes (the
-actual size depends on command line parameters passed to mke2fs when the
-file system was first created and can be 1024, 2048 or 4096 bytes).
-A harddisk is a "block device", meaning that every I/O is
-done in terms those blocks; one can only read/write an integral number
-of a blocks at a time. This doesn't necessarily mean that the minimum
-size of a contiguous file fragment is of the same size (although it can
-only be smaller), but in practise it is. In fact, the program will not
-work if the fragment size is unequal the block size.</p>
+    <p>The content of files is stored in contiguous blocks of 4096 bytes (the
+      actual size depends on command line parameters passed to mke2fs when the
+      file system was first created and can be 1024, 2048 or 4096 bytes).
+      A harddisk is a "block device", meaning that every I/O is
+      done in terms those blocks; one can only read/write an integral number
+      of a blocks at a time. This doesn't necessarily mean that the minimum
+      size of a contiguous file fragment is of the same size (although it can
+      only be smaller), but in practise it is. In fact, the program will not
+      work if the fragment size is unequal the block size.</p>
 
-<p>The actual block size, as well as the actual fragment size, are
-stored in the superblock and can be retrieved with the option <code>--superblock</code>.
-For example,</p>
+    <p>The actual block size, as well as the actual fragment size, are
+      stored in the superblock and can be retrieved with the option <code>--superblock</code>.
+      For example,</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'size:'
+    <pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'size:'
 Block size: 4096
 Fragment size: 4096
 </pre>
 
-<p>Here <code>IMAGE</code> is an environment variable that was set
-to the name of the device (or a copy thereof made with <code>dd</code>)
-of the partition holding the file system. For example <code>/dev/sdd2</code>
-(in general, any of the device names as returned by the command <code>df</code>
-under the heading "Filesystem"). Normally only root can read
-devices directly, but you can (temporarily) make them readable by you,
-of course, or make a backup image with dd. Note that, for example,
-<code>/dev/sdd</code> is NOT a partition (note the missing digit) and
-will not contain usable data for our purpose.</p>
+    <p>Here <code>IMAGE</code> is an environment variable that was set
+      to the name of the device (or a copy thereof made with <code>dd</code>)
+      of the partition holding the file system. For example <code>/dev/sdd2</code>
+      (in general, any of the device names as returned by the command <code>df</code>
+      under the heading "Filesystem"). Normally only root can read
+      devices directly, but you can (temporarily) make them readable by you,
+      of course, or make a backup image with dd. Note that, for example,
+      <code>/dev/sdd</code> is NOT a partition (note the missing digit) and
+      will not contain usable data for our purpose.</p>
 
-<p>The entire partition is divided into an integral number of blocks,
-starting to count at 0. Thus, if you ever want to make a copy of block
-number N, you could do:</p>
+    <p>The entire partition is divided into an integral number of blocks,
+      starting to count at 0. Thus, if you ever want to make a copy of block
+      number N, you could do:</p>
 
-<div class="command"><pre>$ dd if=$IMAGE bs=4096 count=1 skip=$N of=block.$N
-</pre></div>
+    <div class="command">
+      <pre>$ dd if=$IMAGE bs=4096 count=1 skip=$N of=block.$N
+</pre>
+    </div>
 
-<p>Where N runs from 0 till (but not including) the number of blocks
-as stored in the superblock. For example,</p>
+    <p>Where N runs from 0 till (but not including) the number of blocks
+      as stored in the superblock. For example,</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'Blocks count:'
+    <pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'Blocks count:'
 Blocks count: 2441824
 </pre>
 
-<p>Having any block number, one can print information about it
-by using the command line option <code>--block</code>.
-For example,</p>
+    <p>Having any block number, one can print information about it
+      by using the command line option <code>--block</code>.
+      For example,</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --ls --block 600
+    <pre class="ext3grep">$ ext3grep $IMAGE --ls --block 600
 [...]
 Group: 0
 Block 600 is Allocated. It's inside the inode table of group 0 (inodes [1 - 33&gt;).
@@ -180,202 +187,377 @@ Indx Next |  Inode   | Deletion time                        Mode        File nam
    3  end d  195457  D 1202352103 Thu Feb  7 03:41:43 2008  drwxr-xr-x  carlo
 </pre>
 
-<h3>The superblock</h3>
+    <h3>The superblock</h3>
 
-<p>The superblock isn't really a block. It's size is always 1024 bytes and the
-first superblock starts at offset 1024. Thus, if the block size is
-1024 then the superblock is block 1, but if the block size is 2048 or
-4096, then the superblock is part of block 0. There are multiple
-backup copies elsewhere on the disk. <code>ext3grep</code> assumes that
-the first superblock is not corrupted and does not attempt to find or
-read the backup copies.</p>
+    <p>The superblock isn't really a block. It's size is always 1024 bytes and the
+      first superblock starts at offset 1024. Thus, if the block size is
+      1024 then the superblock is block 1, but if the block size is 2048 or
+      4096, then the superblock is part of block 0. There are multiple
+      backup copies elsewhere on the disk. <code>ext3grep</code> assumes that
+      the first superblock is not corrupted and does not attempt to find or
+      read the backup copies.</p>
 
-<p>One could read the contents of the first superblock with dd as follows:</p>
+    <p>One could read the contents of the first superblock with dd as follows:</p>
 
-<div class="command"><pre>$ dd if=$IMAGE bs=1024 skip=1 count=1 of=superblock
-</pre></div>
+    <div class="command">
+      <pre>$ dd if=$IMAGE bs=1024 skip=1 count=1 of=superblock
+</pre>
+    </div>
 
-<p>The meaning of each byte in the superblock is given in table 1.</p>
+    <p>The meaning of each byte in the superblock is given in table 1.</p>
 
-<table class="struct">
-<caption>Table 1. The Superblock</caption>
-<tbody><tr>
-<th>Bytes</th><th>type</th><th>Description</th>
-</tr>
-<tr>
-<td>0 .. 3</td><td>__le32</td><td>Inodes count</td>
-</tr><tr>
-<td>4 .. 7</td><td>__le32</td><td>Blocks count</td>
-</tr><tr>
-<td>8 .. 11</td><td>__le32</td><td>Reserved blocks count</td>
-</tr><tr>
-<td>12 .. 15</td><td>__le32</td><td>Free blocks count</td>
-</tr><tr>
-<td>16 .. 19</td><td>__le32</td><td>Free inodes count</td>
-</tr><tr>
-<td>20 .. 23</td><td>__le32</td><td>First data block</td>
-</tr><tr>
-<td>24 .. 27</td><td>__le32</td><td>Block size</td>
-</tr><tr>
-<td>28 .. 31</td><td>__le32</td><td>Fragment size</td>
-</tr><tr>
-<td>32 .. 35</td><td>__le32</td><td>Number of blocks per group</td>
-</tr><tr>
-<td>36 .. 39</td><td>__le32</td><td>Number of fragments per group</td>
-</tr><tr>
-<td>40 .. 43</td><td>__le32</td><td>Number of inodes per group</td>
-</tr><tr>
-<td>44 .. 47</td><td>__le32</td><td>Mount time</td>
-</tr><tr>
-<td>48 .. 51</td><td>__le32</td><td>Write time</td>
-</tr><tr>
-<td>52 .. 53</td><td>__le16</td><td>Mount count</td>
-</tr><tr>
-<td>54 .. 55</td><td>__le16</td><td>Maximal mount count</td>
-</tr><tr>
-<td>56 .. 57</td><td>__le16</td><td>Magic signature</td>
-</tr><tr>
-<td>58 .. 59</td><td>__le16</td><td>File system state</td>
-</tr><tr>
-<td>60 .. 61</td><td>__le16</td><td>Behaviour when detecting errors</td>
-</tr><tr>
-<td>62 .. 63</td><td>__le16</td><td>minor revision level</td>
-</tr><tr>
-<td>64 .. 67</td><td>__le32</td><td>Time of last check</td>
-</tr><tr>
-<td>68 .. 71</td><td>__le32</td><td>Max. time between checks</td>
-</tr><tr>
-<td>72 .. 75</td><td>__le32</td><td>OS</td>
-</tr><tr>
-<td>76 .. 79</td><td>__le32</td><td>Revision level</td>
-</tr><tr>
-<td>80 .. 81</td><td>__le16</td><td>Default uid for reserved blocks</td>
-</tr><tr>
-<td>82 .. 83</td><td>__le16</td><td>Default gid for reserved blocks</td>
-</tr><tr>
+    <table class="struct">
+      <caption>Table 1. The Superblock</caption>
+      <tbody>
+        <tr>
+          <th>Bytes</th>
+          <th>type</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td>0 .. 3</td>
+          <td>__le32</td>
+          <td>Inodes count</td>
+        </tr>
+        <tr>
+          <td>4 .. 7</td>
+          <td>__le32</td>
+          <td>Blocks count</td>
+        </tr>
+        <tr>
+          <td>8 .. 11</td>
+          <td>__le32</td>
+          <td>Reserved blocks count</td>
+        </tr>
+        <tr>
+          <td>12 .. 15</td>
+          <td>__le32</td>
+          <td>Free blocks count</td>
+        </tr>
+        <tr>
+          <td>16 .. 19</td>
+          <td>__le32</td>
+          <td>Free inodes count</td>
+        </tr>
+        <tr>
+          <td>20 .. 23</td>
+          <td>__le32</td>
+          <td>First data block</td>
+        </tr>
+        <tr>
+          <td>24 .. 27</td>
+          <td>__le32</td>
+          <td>Block size</td>
+        </tr>
+        <tr>
+          <td>28 .. 31</td>
+          <td>__le32</td>
+          <td>Fragment size</td>
+        </tr>
+        <tr>
+          <td>32 .. 35</td>
+          <td>__le32</td>
+          <td>Number of blocks per group</td>
+        </tr>
+        <tr>
+          <td>36 .. 39</td>
+          <td>__le32</td>
+          <td>Number of fragments per group</td>
+        </tr>
+        <tr>
+          <td>40 .. 43</td>
+          <td>__le32</td>
+          <td>Number of inodes per group</td>
+        </tr>
+        <tr>
+          <td>44 .. 47</td>
+          <td>__le32</td>
+          <td>Mount time</td>
+        </tr>
+        <tr>
+          <td>48 .. 51</td>
+          <td>__le32</td>
+          <td>Write time</td>
+        </tr>
+        <tr>
+          <td>52 .. 53</td>
+          <td>__le16</td>
+          <td>Mount count</td>
+        </tr>
+        <tr>
+          <td>54 .. 55</td>
+          <td>__le16</td>
+          <td>Maximal mount count</td>
+        </tr>
+        <tr>
+          <td>56 .. 57</td>
+          <td>__le16</td>
+          <td>Magic signature</td>
+        </tr>
+        <tr>
+          <td>58 .. 59</td>
+          <td>__le16</td>
+          <td>File system state</td>
+        </tr>
+        <tr>
+          <td>60 .. 61</td>
+          <td>__le16</td>
+          <td>Behaviour when detecting errors</td>
+        </tr>
+        <tr>
+          <td>62 .. 63</td>
+          <td>__le16</td>
+          <td>minor revision level</td>
+        </tr>
+        <tr>
+          <td>64 .. 67</td>
+          <td>__le32</td>
+          <td>Time of last check</td>
+        </tr>
+        <tr>
+          <td>68 .. 71</td>
+          <td>__le32</td>
+          <td>Max. time between checks</td>
+        </tr>
+        <tr>
+          <td>72 .. 75</td>
+          <td>__le32</td>
+          <td>OS</td>
+        </tr>
+        <tr>
+          <td>76 .. 79</td>
+          <td>__le32</td>
+          <td>Revision level</td>
+        </tr>
+        <tr>
+          <td>80 .. 81</td>
+          <td>__le16</td>
+          <td>Default uid for reserved blocks</td>
+        </tr>
+        <tr>
+          <td>82 .. 83</td>
+          <td>__le16</td>
+          <td>Default gid for reserved blocks</td>
+        </tr>
+        <tr>
 
-<td>84 .. 87</td><td>__le32</td><td>First non-reserved inode</td>
-</tr><tr>
-<td>88 .. 89</td><td>__le16</td><td>Size of inode structure</td>
-</tr><tr>
-<td>90 .. 91</td><td>__le16</td><td>Block group number of this superblock</td>
-</tr><tr>
-<td>92 .. 95</td><td>__le32</td><td>Compatible feature set</td>
-</tr><tr>
-<td>96 .. 99</td><td>__le32</td><td>Incompatible feature set</td>
-</tr><tr>
-<td>100 .. 103</td><td>__le32</td><td>Readonly-compatible feature set</td>
-</tr><tr>
-<td>104 .. 119</td><td>__u8[16]</td><td>128-bit uuid for volume</td>
-</tr><tr>
-<td>120 .. 135</td><td>char[16]</td><td>Volume name</td>
-</tr><tr>
-<td>136 .. 199</td><td>char[64]</td><td>Directory where last mounted</td>
-</tr><tr>
-<td>200 .. 203</td><td>__le32</td><td>For compression</td>
-</tr><tr>
-<td>204</td><td>__u8</td><td>Number of blocks to try to preallocate</td>
-</tr><tr>
-<td>205</td><td>__u8</td><td>Number to preallocate for dirs</td>
-</tr><tr>
-<td>206 .. 207</td><td>__le16</td><td>Per group descriptors for online growth</td>
-</tr><tr>
-<td>208 .. 223</td><td>__u8[16]</td><td>uuid of journal superblock</td>
-</tr><tr>
-<td>224 .. 227</td><td>__le32</td><td>Inode number of journal file</td>
-</tr><tr>
-<td>228 .. 231</td><td>__le32</td><td>Device number of journal file</td>
-</tr><tr>
-<td>232 .. 235</td><td>__le32</td><td>Start of list of inodes to delete</td>
-</tr><tr>
-<td>236 .. 251</td><td>__le32[4]</td><td>HTREE hash seed</td>
-</tr><tr>
-<td>252</td><td>__u8</td><td>Default hash version to use</td>
-</tr><tr>
-<td>253 .. 255</td><td></td><td>Reserved</td>
-</tr><tr>
-<td>256 .. 259</td><td>__le32</td><td>Default mount options</td>
-</tr><tr>
-<td>260 .. 263</td><td>__le32</td><td>First metablock block group</td>
-</tr><tr>
-<td>264 .. 1023</td><td></td><td>Reserved</td>
-</tr>
-</tbody></table>
+          <td>84 .. 87</td>
+          <td>__le32</td>
+          <td>First non-reserved inode</td>
+        </tr>
+        <tr>
+          <td>88 .. 89</td>
+          <td>__le16</td>
+          <td>Size of inode structure</td>
+        </tr>
+        <tr>
+          <td>90 .. 91</td>
+          <td>__le16</td>
+          <td>Block group number of this superblock</td>
+        </tr>
+        <tr>
+          <td>92 .. 95</td>
+          <td>__le32</td>
+          <td>Compatible feature set</td>
+        </tr>
+        <tr>
+          <td>96 .. 99</td>
+          <td>__le32</td>
+          <td>Incompatible feature set</td>
+        </tr>
+        <tr>
+          <td>100 .. 103</td>
+          <td>__le32</td>
+          <td>Readonly-compatible feature set</td>
+        </tr>
+        <tr>
+          <td>104 .. 119</td>
+          <td>__u8[16]</td>
+          <td>128-bit uuid for volume</td>
+        </tr>
+        <tr>
+          <td>120 .. 135</td>
+          <td>char[16]</td>
+          <td>Volume name</td>
+        </tr>
+        <tr>
+          <td>136 .. 199</td>
+          <td>char[64]</td>
+          <td>Directory where last mounted</td>
+        </tr>
+        <tr>
+          <td>200 .. 203</td>
+          <td>__le32</td>
+          <td>For compression</td>
+        </tr>
+        <tr>
+          <td>204</td>
+          <td>__u8</td>
+          <td>Number of blocks to try to preallocate</td>
+        </tr>
+        <tr>
+          <td>205</td>
+          <td>__u8</td>
+          <td>Number to preallocate for dirs</td>
+        </tr>
+        <tr>
+          <td>206 .. 207</td>
+          <td>__le16</td>
+          <td>Per group descriptors for online growth</td>
+        </tr>
+        <tr>
+          <td>208 .. 223</td>
+          <td>__u8[16]</td>
+          <td>uuid of journal superblock</td>
+        </tr>
+        <tr>
+          <td>224 .. 227</td>
+          <td>__le32</td>
+          <td>Inode number of journal file</td>
+        </tr>
+        <tr>
+          <td>228 .. 231</td>
+          <td>__le32</td>
+          <td>Device number of journal file</td>
+        </tr>
+        <tr>
+          <td>232 .. 235</td>
+          <td>__le32</td>
+          <td>Start of list of inodes to delete</td>
+        </tr>
+        <tr>
+          <td>236 .. 251</td>
+          <td>__le32[4]</td>
+          <td>HTREE hash seed</td>
+        </tr>
+        <tr>
+          <td>252</td>
+          <td>__u8</td>
+          <td>Default hash version to use</td>
+        </tr>
+        <tr>
+          <td>253 .. 255</td>
+          <td></td>
+          <td>Reserved</td>
+        </tr>
+        <tr>
+          <td>256 .. 259</td>
+          <td>__le32</td>
+          <td>Default mount options</td>
+        </tr>
+        <tr>
+          <td>260 .. 263</td>
+          <td>__le32</td>
+          <td>First metablock block group</td>
+        </tr>
+        <tr>
+          <td>264 .. 1023</td>
+          <td></td>
+          <td>Reserved</td>
+        </tr>
+      </tbody>
+    </table>
 
-<p>The C-struct for the superblock is given in the header file <code>/usr/include/linux/ext3_fs.h</code>
-and was used to create table 1.
-The data of the unsigned integers is stored on disk in Little Endian format.
-On a little endian CPU like Intel x86, that means that <code>__le32</code> is in fact an <code>uint32_t</code>
-and <code>__le16</code> is equal to <code>uint16_t</code>.</p>
+    <p>The C-struct for the superblock is given in the header file <code>/usr/include/linux/ext3_fs.h</code>
+      and was used to create table 1.
+      The data of the unsigned integers is stored on disk in Little Endian format.
+      On a little endian CPU like Intel x86, that means that <code>__le32</code> is in fact an <code>uint32_t</code>
+      and <code>__le16</code> is equal to <code>uint16_t</code>.</p>
 
-<h3>Groups</h3>
+    <h3>Groups</h3>
 
-<p>Each ext3 file system is devided into groups, with a fixed number of
-blocks per group, except the last group which contains the remaining blocks.
-The number of blocks per group is given in the superblock, ie</p>
+    <p>Each ext3 file system is devided into groups, with a fixed number of
+      blocks per group, except the last group which contains the remaining blocks.
+      The number of blocks per group is given in the superblock, ie</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'Blocks per group'
+    <pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'Blocks per group'
 # Blocks per group: 32768
 </pre>
 
-<p>Each group uses one block as a bitmap to keep track of which block
-inside that group is allocated (used); thus, there can be at most 4096 * 8 = 32768
-normal blocks per group.</p>
+    <p>Each group uses one block as a bitmap to keep track of which block
+      inside that group is allocated (used); thus, there can be at most 4096 * 8 = 32768
+      normal blocks per group.</p>
 
-<p>Another block is used as bitmap for the number of allocated inodes.
-Inodes are data structures of 128 bytes (they can be extended in theory;
-the real size is given in the superblock once again) that are stored in a table,
-(4096 / 128 = 32 inodes per block) in each group.
-Having at most 32768 bits in the bitmap, we can conclude that there will be at
-most 32768 inodes per group, and thus 32768 / 32  = 1024 blocks in the inode
-table of each group. The actual size of the inode table is given by the actual
-number of inodes per group, which is also stored in the superblock.</p><p>
+    <p>Another block is used as bitmap for the number of allocated inodes.
+      Inodes are data structures of 128 bytes (they can be extended in theory;
+      the real size is given in the superblock once again) that are stored in a table,
+      (4096 / 128 = 32 inodes per block) in each group.
+      Having at most 32768 bits in the bitmap, we can conclude that there will be at
+      most 32768 inodes per group, and thus 32768 / 32 = 1024 blocks in the inode
+      table of each group. The actual size of the inode table is given by the actual
+      number of inodes per group, which is also stored in the superblock.</p>
+    <p>
 
-</p><pre class="ext3grep">$ ext3grep $IMAGE --superblock | egrep 'Size of inode|inodes per group'
+    </p>
+    <pre class="ext3grep">$ ext3grep $IMAGE --superblock | egrep 'Size of inode|inodes per group'
 Number of inodes per group: 16288
 Size of inode structure: 128
 </pre>
 
-<p>The block numbers of both bitmaps and the start of the inode table
-is given in the "group descriptor table", which resides in
-the block following the superblock; thus, block 1 or block 2 depending
-on the size of a block. This group descriptor table exists of a series
-of consecutive <code>ext3_group_desc</code> structs, also defined in
-<code>/usr/include/linux/ext3_fs.h</code>, see table 2.</p>
+    <p>The block numbers of both bitmaps and the start of the inode table
+      is given in the "group descriptor table", which resides in
+      the block following the superblock; thus, block 1 or block 2 depending
+      on the size of a block. This group descriptor table exists of a series
+      of consecutive <code>ext3_group_desc</code> structs, also defined in
+      <code>/usr/include/linux/ext3_fs.h</code>, see table 2.</p>
 
-<table class="struct">
-<caption>Table 2. A group descriptor</caption>
-<tbody><tr>
-<th>Bytes</th><th>type</th><th>Description</th>
-</tr>
-<tr>
-<td>0 .. 3</td><td>__le32</td><td>Blocks bitmap block</td>
-</tr><tr>
-<td>4 .. 7</td><td>__le32</td><td>Inodes bitmap block</td>
-</tr><tr>
-<td>8 .. 11</td><td>__le32</td><td>Inodes table block</td>
-</tr><tr>
-<td>12 .. 13</td><td>__le16</td><td>Free blocks count</td>
-</tr><tr>
-<td>14 .. 15</td><td>__le16</td><td>Free inodes count</td>
-</tr><tr>
-<td>16 .. 17</td><td>__le16</td><td>Directories count</td>
-</tr><tr>
-<td>18 .. 31</td><td></td><td>Reserved</td>
-</tr>
-</tbody></table>
+    <table class="struct">
+      <caption>Table 2. A group descriptor</caption>
+      <tbody>
+        <tr>
+          <th>Bytes</th>
+          <th>type</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td>0 .. 3</td>
+          <td>__le32</td>
+          <td>Blocks bitmap block</td>
+        </tr>
+        <tr>
+          <td>4 .. 7</td>
+          <td>__le32</td>
+          <td>Inodes bitmap block</td>
+        </tr>
+        <tr>
+          <td>8 .. 11</td>
+          <td>__le32</td>
+          <td>Inodes table block</td>
+        </tr>
+        <tr>
+          <td>12 .. 13</td>
+          <td>__le16</td>
+          <td>Free blocks count</td>
+        </tr>
+        <tr>
+          <td>14 .. 15</td>
+          <td>__le16</td>
+          <td>Free inodes count</td>
+        </tr>
+        <tr>
+          <td>16 .. 17</td>
+          <td>__le16</td>
+          <td>Directories count</td>
+        </tr>
+        <tr>
+          <td>18 .. 31</td>
+          <td></td>
+          <td>Reserved</td>
+        </tr>
+      </tbody>
+    </table>
 
-<p>Since the size of this struct is padded to a power of 2, 32 bytes, there
-fit precisely an integral number of descriptors in a block. Therefore the table
-is contiguous even when spanning multiple blocks. Note that one block of
-4096 bytes is already capable of holding 128 group descriptors, each of which
-can store 32768 blocks— thus only a partition larger than 16 GB
-will use more than one block for the group descriptor table.</p>
+    <p>Since the size of this struct is padded to a power of 2, 32 bytes, there
+      fit precisely an integral number of descriptors in a block. Therefore the table
+      is contiguous even when spanning multiple blocks. Note that one block of
+      4096 bytes is already capable of holding 128 group descriptors, each of which
+      can store 32768 blocks— thus only a partition larger than 16 GB
+      will use more than one block for the group descriptor table.</p>
 
-<p>The content of the table is printed by <code>ext3grep</code> if
-no action or group is specified on the command line. For example,</p>
+    <p>The content of the table is printed by <code>ext3grep</code> if
+      no action or group is specified on the command line. For example,</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE 
+    <pre class="ext3grep">$ ext3grep $IMAGE 
 No action specified; implying --superblock.
 [...]
 Number of groups: 75
@@ -389,118 +571,175 @@ Number of groups: 75
 [...]
 </pre>
 
-<h3>Inodes</h3>
+    <h3>Inodes</h3>
 
-<p>The inodes in the inode table of each group contain meta data for each type
-of data that the file system can store. This type might be a symbolic link,
-in which case only the inode is sufficient, it might be a directory, a file,
-a FIFO, a UNIX socket and so on.
-In the case of files and directories the real data is stored in file system
-blocks outside the inode.
-The first 12 block numbers are stored in the inode,
-if more blocks are needed, then then the inode points to an indirect block:
-a block with more block numbers that contain data. Subsequently the inode
-can store a double indirect block and a triple indirect block.
-The structure of an inode is given in table 3.</p>
+    <p>The inodes in the inode table of each group contain meta data for each type
+      of data that the file system can store. This type might be a symbolic link,
+      in which case only the inode is sufficient, it might be a directory, a file,
+      a FIFO, a UNIX socket and so on.
+      In the case of files and directories the real data is stored in file system
+      blocks outside the inode.
+      The first 12 block numbers are stored in the inode,
+      if more blocks are needed, then then the inode points to an indirect block:
+      a block with more block numbers that contain data. Subsequently the inode
+      can store a double indirect block and a triple indirect block.
+      The structure of an inode is given in table 3.</p>
 
-<table class="struct">
-<caption>Table 3. An inode</caption>
-<tbody><tr>
-<th>Bytes</th><th>type</th><th>Description</th>
-</tr>
-<tr>
-<td>0 .. 1</td><td>__le16</td><td>File mode</td>
-</tr><tr>
-<td>2 .. 3</td><td>__le16</td><td>Low 16 bits of Owner uid</td>
-</tr><tr>
-<td>4 .. 7</td><td>__le32</td><td>Size in bytes</td>
-</tr><tr>
-<td>8 .. 11</td><td>__le32</td><td>Access time</td>
-</tr><tr>
-<td>12 .. 15</td><td>__le32</td><td>Creation time</td>
-</tr><tr>
-<td>16 .. 19</td><td>__le32</td><td>Modification time</td>
-</tr><tr>
-<td>20 .. 23</td><td>__le32</td><td>Deletion Time</td>
-</tr><tr>
-<td>24 .. 25</td><td>__le16</td><td>Low 16 bits of Group Id</td>
-</tr><tr>
-<td>26 .. 27</td><td>__le16</td><td>Links count</td>
-</tr><tr>
-<td>28 .. 31</td><td>__le32</td><td>Blocks count</td>
-</tr><tr>
-<td>32 .. 35</td><td>__le32</td><td>File flags</td>
-</tr><tr>
-<td>36 .. 39</td><td>linux1</td><td>OS dependent 1</td>
-</tr><tr>
-<td>40 .. 99</td><td>__le32[15]</td><td>Pointers to blocks</td>
-</tr><tr>
-<td>100 .. 103</td><td>__le32</td><td>File version (for NFS)</td>
-</tr><tr>
-<td>104 .. 107</td><td>__le32</td><td>File ACL</td>
-</tr><tr>
-<td>108 .. 111</td><td>__le32</td><td>Directory ACL</td>
-</tr><tr>
-<td>112 .. 115</td><td>__le32</td><td>Fragment address</td>
-</tr><tr>
-<td>116 .. 127</td><td>linux2</td><td>OS dependent 2</td>
-</tr>
-</tbody></table>
+    <table class="struct">
+      <caption>Table 3. An inode</caption>
+      <tbody>
+        <tr>
+          <th>Bytes</th>
+          <th>type</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td>0 .. 1</td>
+          <td>__le16</td>
+          <td>File mode</td>
+        </tr>
+        <tr>
+          <td>2 .. 3</td>
+          <td>__le16</td>
+          <td>Low 16 bits of Owner uid</td>
+        </tr>
+        <tr>
+          <td>4 .. 7</td>
+          <td>__le32</td>
+          <td>Size in bytes</td>
+        </tr>
+        <tr>
+          <td>8 .. 11</td>
+          <td>__le32</td>
+          <td>Access time</td>
+        </tr>
+        <tr>
+          <td>12 .. 15</td>
+          <td>__le32</td>
+          <td>Creation time</td>
+        </tr>
+        <tr>
+          <td>16 .. 19</td>
+          <td>__le32</td>
+          <td>Modification time</td>
+        </tr>
+        <tr>
+          <td>20 .. 23</td>
+          <td>__le32</td>
+          <td>Deletion Time</td>
+        </tr>
+        <tr>
+          <td>24 .. 25</td>
+          <td>__le16</td>
+          <td>Low 16 bits of Group Id</td>
+        </tr>
+        <tr>
+          <td>26 .. 27</td>
+          <td>__le16</td>
+          <td>Links count</td>
+        </tr>
+        <tr>
+          <td>28 .. 31</td>
+          <td>__le32</td>
+          <td>Blocks count</td>
+        </tr>
+        <tr>
+          <td>32 .. 35</td>
+          <td>__le32</td>
+          <td>File flags</td>
+        </tr>
+        <tr>
+          <td>36 .. 39</td>
+          <td>linux1</td>
+          <td>OS dependent 1</td>
+        </tr>
+        <tr>
+          <td>40 .. 99</td>
+          <td>__le32[15]</td>
+          <td>Pointers to blocks</td>
+        </tr>
+        <tr>
+          <td>100 .. 103</td>
+          <td>__le32</td>
+          <td>File version (for NFS)</td>
+        </tr>
+        <tr>
+          <td>104 .. 107</td>
+          <td>__le32</td>
+          <td>File ACL</td>
+        </tr>
+        <tr>
+          <td>108 .. 111</td>
+          <td>__le32</td>
+          <td>Directory ACL</td>
+        </tr>
+        <tr>
+          <td>112 .. 115</td>
+          <td>__le32</td>
+          <td>Fragment address</td>
+        </tr>
+        <tr>
+          <td>116 .. 127</td>
+          <td>linux2</td>
+          <td>OS dependent 2</td>
+        </tr>
+      </tbody>
+    </table>
 
-<p>The C-struct for the inode, <code>struct ext3_inode</code>,
-is given in the header file <code>/usr/include/linux/ext3_fs.h</code> and was used to create table 3.
-That same header file also defines a number of constants in the form of macros that should
-be used to access the data. For example, the struct member that is stored in bytes 40 to 99
-is <code>i_block</code>, it's size is <code>EXT3_N_BLOCKS</code> 32-bit block numbers.
-<code>i_block[EXT3_IND_BLOCK]</code> points to (contains the block number of) an indirect block
-if one exists. <code>i_block[EXT3_DIND_BLOCK]</code> to a double indirect block and
-<code>i_block[EXT3_TIND_BLOCK]</code> to a tripple indirect block. Basically, every constant
-has it's macro, see the header file for more details. <code>ext3grep</code> uses
-<code>i_reserved2</code> to store the inode number, so that printing an <code>ext3_inode</code>
-struct in gdb shows which inode it really is.</p>
+    <p>The C-struct for the inode, <code>struct ext3_inode</code>,
+      is given in the header file <code>/usr/include/linux/ext3_fs.h</code> and was used to create table 3.
+      That same header file also defines a number of constants in the form of macros that should
+      be used to access the data. For example, the struct member that is stored in bytes 40 to 99
+      is <code>i_block</code>, it's size is <code>EXT3_N_BLOCKS</code> 32-bit block numbers.
+      <code>i_block[EXT3_IND_BLOCK]</code> points to (contains the block number of) an indirect block
+      if one exists. <code>i_block[EXT3_DIND_BLOCK]</code> to a double indirect block and
+      <code>i_block[EXT3_TIND_BLOCK]</code> to a tripple indirect block. Basically, every constant
+      has it's macro, see the header file for more details. <code>ext3grep</code> uses
+      <code>i_reserved2</code> to store the inode number, so that printing an <code>ext3_inode</code>
+      struct in gdb shows which inode it really is.</p>
 
-<p>The superblock shows how many inodes exist in total, and how many inodes there are per group.
-This allows one to calculate the number of groups. Because the inodes are stored in their
-respective inode tables per group, one first has to determine the group that an inode number
-belongs to. Because inodes start to count at 1, the formula to convert an inode number to
-the group it belongs to is:</p>
+    <p>The superblock shows how many inodes exist in total, and how many inodes there are per group.
+      This allows one to calculate the number of groups. Because the inodes are stored in their
+      respective inode tables per group, one first has to determine the group that an inode number
+      belongs to. Because inodes start to count at 1, the formula to convert an inode number to
+      the group it belongs to is:</p>
 
-<pre>group = (inode_number - 1) / inodes_per_group
+    <pre>group = (inode_number - 1) / inodes_per_group
 </pre>
 
-<p>This gives the correct inode table. To find the index of the inode in this table
-we subtract the inode number of the first inode in the table from our inode number:</p>
+    <p>This gives the correct inode table. To find the index of the inode in this table
+      we subtract the inode number of the first inode in the table from our inode number:</p>
 
-<pre>index = inode_number - (group * inodes_per_group + 1)
+    <pre>index = inode_number - (group * inodes_per_group + 1)
 </pre>
 
-<p>Note that this index also determines the corresponding bit in the inodes bitmap.</p>
+    <p>Note that this index also determines the corresponding bit in the inodes bitmap.</p>
 
-<p>As such, groups have been made transparent: every inode can be addressed with
-a number in the contiguous range <code>[1, number_of_inodes]</code>, where
-the number of inodes is given by:</p>
+    <p>As such, groups have been made transparent: every inode can be addressed with
+      a number in the contiguous range <code>[1, number_of_inodes]</code>, where
+      the number of inodes is given by:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'Inodes count'
+    <pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'Inodes count'
 Inodes count: 1221600
 </pre>
 
-<p>In some case you might want to know which block in the file system belongs
-to the inode table that stores a particular inode. This can be retrieved with
-the command line option <code>--inode-to-block</code>, for example:</p>
+    <p>In some case you might want to know which block in the file system belongs
+      to the inode table that stores a particular inode. This can be retrieved with
+      the command line option <code>--inode-to-block</code>, for example:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --inode-to-block 2
+    <pre class="ext3grep">$ ext3grep $IMAGE --inode-to-block 2
 [...]
 Inode 2 resides in block 600 at offset 0x80.
 </pre>
 
-<p>Inode number 2 (the macro <code>EXT3_ROOT_INO</code> in <code>ext3_fs.h</code>)
-is always used for the root of the partition: it's type is a directory.
-Of all other special inodes we only use EXT3_JOURNAL_INO (number 8).</p>
+    <p>Inode number 2 (the macro <code>EXT3_ROOT_INO</code> in <code>ext3_fs.h</code>)
+      is always used for the root of the partition: it's type is a directory.
+      Of all other special inodes we only use EXT3_JOURNAL_INO (number 8).</p>
 
-<p>Having the inode number, one can print it's contents with <code>ext3grep</code>,
-for example:</p>
+    <p>Having the inode number, one can print it's contents with <code>ext3grep</code>,
+      for example:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --inode 2 --print
+    <pre class="ext3grep">$ ext3grep $IMAGE --inode 2 --print
 Number of groups: 75
 Loading group metadata... done
 [...]
@@ -544,58 +783,77 @@ Indx Next |  Inode   | Deletion time                        Mode        File nam
    3  end d  195457  D 1202352103 Thu Feb  7 03:41:43 2008  drwxr-xr-x  carlo
 </pre>
 
-<p>As you see, <code>ext3grep</code> first dumps the hexadecimal content of
-the inode table; then interprets it and prints the struct members, ending with
-the line <code>Direct Blocks: 1109</code>. It then detects that this block is
-a directory (which can also be seen in the mode field of the inode) and
-therefore continuous with listing this block as directory.</p>
+    <p>As you see, <code>ext3grep</code> first dumps the hexadecimal content of
+      the inode table; then interprets it and prints the struct members, ending with
+      the line <code>Direct Blocks: 1109</code>. It then detects that this block is
+      a directory (which can also be seen in the mode field of the inode) and
+      therefore continuous with listing this block as directory.</p>
 
-<h3>Regular Files</h3>
+    <h3>Regular Files</h3>
 
-<p>If an inode represents a regular file, then the blocks it refers to
-simply contain the data of the file. If the size of a file is not an integral
-number of times the block size, than the excess bytes in the last block
-will be zeroed out (at least, on linux).</p>
+    <p>If an inode represents a regular file, then the blocks it refers to
+      simply contain the data of the file. If the size of a file is not an integral
+      number of times the block size, than the excess bytes in the last block
+      will be zeroed out (at least, on linux).</p>
 
-<h3>Symbolic links</h3>
+    <h3>Symbolic links</h3>
 
-<p>The value of a symbolic link is a string: the pathname to it's target.
-The length of the string is given in <code>i_size</code>.
-If <code>i_blocks</code> is zero, then <code>i_block</code>
-does <em>not</em> contain block numbers, but is used to store the string directly.
-However, if the name of the target is longer than fits in <code>i_block</code>,
-then <code>i_blocks</code> will be non-zero and <code>i_block[0]</code> will
-point to a block containing the target name.</p>
+    <p>The value of a symbolic link is a string: the pathname to it's target.
+      The length of the string is given in <code>i_size</code>.
+      If <code>i_blocks</code> is zero, then <code>i_block</code>
+      does <em>not</em> contain block numbers, but is used to store the string directly.
+      However, if the name of the target is longer than fits in <code>i_block</code>,
+      then <code>i_blocks</code> will be non-zero and <code>i_block[0]</code> will
+      point to a block containing the target name.</p>
 
-<h3>Directories</h3>
+    <h3>Directories</h3>
 
-<p>If an inode represents a directory then its blocks are (singly) linked lists of <code>ext3_dir_entry_2</code> data structures.
-Each block is self-contained: no dir entry points outside the block.
-The first block will always start with the dir entries for "." and "..".</p>
+    <p>If an inode represents a directory then its blocks are (singly) linked lists of <code>ext3_dir_entry_2</code>
+      data structures.
+      Each block is self-contained: no dir entry points outside the block.
+      The first block will always start with the dir entries for "." and "..".</p>
 
-<table class="struct">
-<caption>Table 4. A Directory Entry</caption>
-<tbody><tr>
-<th>Bytes</th><th>type</th><th>Description</th>
-</tr>
-<tr>
-<td>0 .. 3</td><td>__le32</td><td>Inode number</td>
-</tr><tr>
-<td>4 .. 5</td><td>__le16</td><td>Directory entry length</td>
-</tr><tr>
-<td>6</td><td>__u8</td><td>Name length</td>
-</tr><tr>
-<td>7</td><td>__u8</td><td>File Type</td>
-</tr><tr>
-<td>8</td><td>char[]</td><td>File-, symlink- or directory name</td>
-</tr>
-</tbody></table>
+    <table class="struct">
+      <caption>Table 4. A Directory Entry</caption>
+      <tbody>
+        <tr>
+          <th>Bytes</th>
+          <th>type</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td>0 .. 3</td>
+          <td>__le32</td>
+          <td>Inode number</td>
+        </tr>
+        <tr>
+          <td>4 .. 5</td>
+          <td>__le16</td>
+          <td>Directory entry length</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>__u8</td>
+          <td>Name length</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>__u8</td>
+          <td>File Type</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td>char[]</td>
+          <td>File-, symlink- or directory name</td>
+        </tr>
+      </tbody>
+    </table>
 
-<p>Using the options <code>--ls --inode $N</code>, <code>ext3grep</code>
-lists the contents of each directory block of inode N. For example,
-to list the root directory of a partition:</p>
+    <p>Using the options <code>--ls --inode $N</code>, <code>ext3grep</code>
+      lists the contents of each directory block of inode N. For example,
+      to list the root directory of a partition:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --ls --inode 2
+    <pre class="ext3grep">$ ext3grep $IMAGE --ls --inode 2
 Number of groups: 75
 Loading group metadata... done
 Minimum / maximum journal block: 1115 / 35026
@@ -617,30 +875,30 @@ Indx Next |  Inode   | Deletion time                        Mode        File nam
    3  end d  195457  D 1202352103 Thu Feb  7 03:41:43 2008  drwxr-xr-x  carlo
 </pre>
 
-<p>Subsequently, one could use <code>ext3grep --ls --inode 195457</code> to
-list directory <code>carlo</code>, and so on.</p>
+    <p>Subsequently, one could use <code>ext3grep --ls --inode 195457</code> to
+      list directory <code>carlo</code>, and so on.</p>
 
-<p>Note that <code>ext3grep</code> prints all directory entries, deleted not.
-There are two ways that one can see that a directory is deleted: firstly,
-it's inode will have a non-zero Deletion Time, secondly the dir entry might
-be taken out of the linked list by skipping it; the "Directory Entry Length",
-bytes 4 and 5 of each directory entry, basically 'point' to the next entry,
-or to the byte directly following the block if there are no other dir entries.
-In the listing of <code>ext2grep</code> the address of the dir entries has
-has been replaced by an artificial index (in the first column) and the "Directory Entry Length"
-is replaced with the column called <code>Next</code>, which either points to the next
-entry or contains <code>end</code> when there are no other dir entries. In the
-above example, 0 is the first entry, 1 is the next and last entry. The entries
-with index 2 and 3 are skipped. However, it is still visible that entry 2 used to
-point to entry 3. In fact, entries 2 and 3 are deleted at the same time by
-changing the "Directory Entry Length" of entry 1 such that it did
-not 'point' to entry 2 anymore, but to the end of the block.</p>
+    <p>Note that <code>ext3grep</code> prints all directory entries, deleted not.
+      There are two ways that one can see that a directory is deleted: firstly,
+      it's inode will have a non-zero Deletion Time, secondly the dir entry might
+      be taken out of the linked list by skipping it; the "Directory Entry Length",
+      bytes 4 and 5 of each directory entry, basically 'point' to the next entry,
+      or to the byte directly following the block if there are no other dir entries.
+      In the listing of <code>ext2grep</code> the address of the dir entries has
+      has been replaced by an artificial index (in the first column) and the "Directory Entry Length"
+      is replaced with the column called <code>Next</code>, which either points to the next
+      entry or contains <code>end</code> when there are no other dir entries. In the
+      above example, 0 is the first entry, 1 is the next and last entry. The entries
+      with index 2 and 3 are skipped. However, it is still visible that entry 2 used to
+      point to entry 3. In fact, entries 2 and 3 are deleted at the same time by
+      changing the "Directory Entry Length" of entry 1 such that it did
+      not 'point' to entry 2 anymore, but to the end of the block.</p>
 
-<p>Because <code>ext3grep</code> prints also deleted entries, it is very
-well possible that the SAME entry occurs multiple times. In particular, if
-a file is moved, a duplicate remains that will still be visible. Ie,</p>
+    <p>Because <code>ext3grep</code> prints also deleted entries, it is very
+      well possible that the SAME entry occurs multiple times. In particular, if
+      a file is moved, a duplicate remains that will still be visible. Ie,</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --ls --inode 195457 | grep '\.viminfo$'
+    <pre class="ext3grep">$ ext3grep $IMAGE --ls --inode 195457 | grep '\.viminfo$'
    7    8 r  201434  D 1202351096 Thu Feb  7 03:24:56 2008  rrw-r--r--  .viminfo
   18   19 r  195995  D 1202351097 Thu Feb  7 03:24:57 2008  rrw-------  .viminfo
   18   19 r  195994  D 1202351111 Thu Feb  7 03:25:11 2008  rrw-r--r--  .viminfo
@@ -703,36 +961,36 @@ a file is moved, a duplicate remains that will still be visible. Ie,</p>
   17   19 r  197221  D 1202351110 Thu Feb  7 03:25:10 2008  rrw-r--r--  .viminfo
 </pre>
 
-<p>In order to understand this, the following remarks.</p>
+    <p>In order to understand this, the following remarks.</p>
 
-<p>Firstly, these duplicated entries come mostly from duplicated directory blocks,
-which is already apparent from the index number of the entries: if they were all
-from the same block then all index numbers would have been different. Of course,
-without piping the output to <code>grep</code> it would be clear that each entry
-belongs to a different directory block, but that output is too much to show here.</p>
+    <p>Firstly, these duplicated entries come mostly from duplicated directory blocks,
+      which is already apparent from the index number of the entries: if they were all
+      from the same block then all index numbers would have been different. Of course,
+      without piping the output to <code>grep</code> it would be clear that each entry
+      belongs to a different directory block, but that output is too much to show here.</p>
 
-<p>Secondly, you have to realize that only the inode number, the file type in
-the third column and the file name is data from the dir entry itself. The
-Deletion time, and the Mode column are extracted from the current data in
-the corresponding inode. However, that inode could have been reused long ago
-by another file and the data it contains would not be related anymore to
-this dir entry. This is clearly the case in the above example because it
-is certain that all those .viminfo files weren't deleted on the same day!
-In a <em>few</em> case it can be detected that an inode has been reallocated (reused):
-if it is still in use (that can't be by this <em>deleted</em> dir entry), or when the
-file type in the inode differs from the file type in the dir entry. In those cases
-the fifth column shows an 'R' instead of a 'D', and the content of the
-inode is not shown. However, because such entries show little information of
-use, they are normally suppressed. If you want to see entries with known
-reallocated inodes, you have to add the command line option <code>--reallocated</code>.
-Moreover, sometimes the inode number in the dir entry itself is zeroed.
-Such entries are obviously useless as well and therefore also suppressed.
-In order to show them use the command line option <code>--zeroed-inodes</code>.</p>
+    <p>Secondly, you have to realize that only the inode number, the file type in
+      the third column and the file name is data from the dir entry itself. The
+      Deletion time, and the Mode column are extracted from the current data in
+      the corresponding inode. However, that inode could have been reused long ago
+      by another file and the data it contains would not be related anymore to
+      this dir entry. This is clearly the case in the above example because it
+      is certain that all those .viminfo files weren't deleted on the same day!
+      In a <em>few</em> case it can be detected that an inode has been reallocated (reused):
+      if it is still in use (that can't be by this <em>deleted</em> dir entry), or when the
+      file type in the inode differs from the file type in the dir entry. In those cases
+      the fifth column shows an 'R' instead of a 'D', and the content of the
+      inode is not shown. However, because such entries show little information of
+      use, they are normally suppressed. If you want to see entries with known
+      reallocated inodes, you have to add the command line option <code>--reallocated</code>.
+      Moreover, sometimes the inode number in the dir entry itself is zeroed.
+      Such entries are obviously useless as well and therefore also suppressed.
+      In order to show them use the command line option <code>--zeroed-inodes</code>.</p>
 
-<p>It is possible to apply filters to the output of <code>--ls</code>.
-An overview of the available filters is given in the output of the <code>--help</code> option:</p>
+    <p>It is possible to apply filters to the output of <code>--ls</code>.
+      An overview of the available filters is given in the output of the <code>--help</code> option:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --help
+    <pre class="ext3grep">$ ext3grep $IMAGE --help
 [...]
 Filters:
   --group grp            Only process group 'grp'.
@@ -754,15 +1012,15 @@ Filters:
 [...]
 </pre>
 
-<p>In order to easily determine sensible values for <code>--after</code> and <code>--before</code>
-the action <code>--histogram=dtime</code> was added. This command line option causes <code>ext3grep</code>
-to print a histogram of time versus number of deleted inodes. If you delete a large number of
-files at once, for example with <code>rm -rf</code>, then it should be easy to determine a time
-window within which the deletion took place.
-For example, here I zoomed in on my personal disaster where I deleted a little over fifty
-thousand files from my home directory:</p>
+    <p>In order to easily determine sensible values for <code>--after</code> and <code>--before</code>
+      the action <code>--histogram=dtime</code> was added. This command line option causes <code>ext3grep</code>
+      to print a histogram of time versus number of deleted inodes. If you delete a large number of
+      files at once, for example with <code>rm -rf</code>, then it should be easy to determine a time
+      window within which the deletion took place.
+      For example, here I zoomed in on my personal disaster where I deleted a little over fifty
+      thousand files from my home directory:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --histogram=dtime --after=1202351086 --before=1202351129
+    <pre class="ext3grep">$ ext3grep $IMAGE --histogram=dtime --after=1202351086 --before=1202351129
 Only show/process deleted entries if they are deleted on or after Thu Feb  7 03:24:46 2008 and before Thu Feb  7 03:25:29 2008.
 
 Number of groups: 75
@@ -821,22 +1079,22 @@ Totals:
 1202351086 - 1202351128    50064
 </pre>
 
-<p>It is important to set a good value for <code>--after</code> before recovering all files,
-or way too many files will be "recovered".</p>
+    <p>It is important to set a good value for <code>--after</code> before recovering all files,
+      or way too many files will be "recovered".</p>
 
-<h3>The Journal</h3>
+    <h3>The Journal</h3>
 
-<p>The journal is a file existing of a fixed number of blocks.
-It's inode is <code>EXT3_JOURNAL_INO</code>, which is usually 8.
-The actual inode can also be found in the superblock:</p>
+    <p>The journal is a file existing of a fixed number of blocks.
+      It's inode is <code>EXT3_JOURNAL_INO</code>, which is usually 8.
+      The actual inode can also be found in the superblock:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'Inode number of journal file'
+    <pre class="ext3grep">$ ext3grep $IMAGE --superblock | grep 'Inode number of journal file'
 Inode number of journal file: 8
 </pre>
 
-<p>and the size then can be found by printing inode 8:</p>
+    <p>and the size then can be found by printing inode 8:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --print --inode 8
+    <pre class="ext3grep">$ ext3grep $IMAGE --print --inode 8
 Number of groups: 75
 Loading group metadata... done
 Minimum / maximum journal block: 1115 / 35026
@@ -874,29 +1132,29 @@ Indirect Block: 1127
 Double Indirect Block: 2152
 </pre>
 
-<p>where you can see that the size of my journal is 134217728 bytes, or
-32768 blocks. The first 12 blocks are listed directly in the inode:
-blocks 1115 - 1126. Then an indirect block is placed in 1127. This
-indirect block can contain 1024 block numbers each of which follow
-the indirect block directly (1128 - 2151). Then the inode refers to
-a double indirect block containing 31 block numbers of additional
-indirect blocks. The total number of (double/tripple) indirect
-blocks is calculated to be 34 (using the fact that a sector is 512 byte).
-Therefore, if everything would be stored contiguously, the last block of
-the journal would be 1115 + 32768 + 34 - 1 = 33916. However, the journal
-didn't fit entirely in group 0, so the last blocks are in group 1 and
-the header of group 1 (most notably it's inode table) is inserted
-somewhere between the journal blocks, causing the last block to be 35025.
-On top of this, there could be bad blocks anywhere in between as well.
-Therefore, the correct way to approach the journal is in terms of
-'journal block numbers'.</p>
+    <p>where you can see that the size of my journal is 134217728 bytes, or
+      32768 blocks. The first 12 blocks are listed directly in the inode:
+      blocks 1115 - 1126. Then an indirect block is placed in 1127. This
+      indirect block can contain 1024 block numbers each of which follow
+      the indirect block directly (1128 - 2151). Then the inode refers to
+      a double indirect block containing 31 block numbers of additional
+      indirect blocks. The total number of (double/tripple) indirect
+      blocks is calculated to be 34 (using the fact that a sector is 512 byte).
+      Therefore, if everything would be stored contiguously, the last block of
+      the journal would be 1115 + 32768 + 34 - 1 = 33916. However, the journal
+      didn't fit entirely in group 0, so the last blocks are in group 1 and
+      the header of group 1 (most notably it's inode table) is inserted
+      somewhere between the journal blocks, causing the last block to be 35025.
+      On top of this, there could be bad blocks anywhere in between as well.
+      Therefore, the correct way to approach the journal is in terms of
+      'journal block numbers'.</p>
 
-<p>The first block of the journal file (block 1115 in the above example)
-contains the 'journal superblock'. It's structure is defined in
-<code>/usr/include/linux/jbd.h</code> as <code>journal_superblock_t</code>.
-It can be printed with:</p>
+    <p>The first block of the journal file (block 1115 in the above example)
+      contains the 'journal superblock'. It's structure is defined in
+      <code>/usr/include/linux/jbd.h</code> as <code>journal_superblock_t</code>.
+      It can be printed with:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --journal --superblock
+    <pre class="ext3grep">$ ext3grep $IMAGE --journal --superblock
 Journal Super Block:
 
 Signature: 0x3225106840
@@ -925,47 +1183,47 @@ Journal transaction 4381435 wraps around, some data blocks might have been lost 
 Number of descriptors in journal: 30258; min / max sequence numbers: 4379495 / 4382264
 </pre>
 
-<p>Here you can see that the journal actually starts in Journal Block Number 1, and the
-last block is Journal Block Number 32768. These are thus not the same as the file system block numbers.
-One can find the real block number with, for example,</p>
+    <p>Here you can see that the journal actually starts in Journal Block Number 1, and the
+      last block is Journal Block Number 32768. These are thus not the same as the file system block numbers.
+      One can find the real block number with, for example,</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --journal --journal-block 1
+    <pre class="ext3grep">$ ext3grep $IMAGE --journal --journal-block 1
 [...]
 Group: 0
 Block 1116 belongs to the journal.
 [...]
 </pre>
 
-<p>which reveals that Journal Block Number 1 is file system block 1116.</p>
+    <p>which reveals that Journal Block Number 1 is file system block 1116.</p>
 
-<p>The journal is filled with "Transactions" which have an ever increasing
-sequence number. If the end of the journal is reached, writing continuous at
-the start, wrapping around. However, if a file system is cleanly unmounted
-then the next mount writing always starts at the beginning (I think).</p>
+    <p>The journal is filled with "Transactions" which have an ever increasing
+      sequence number. If the end of the journal is reached, writing continuous at
+      the start, wrapping around. However, if a file system is cleanly unmounted
+      then the next mount writing always starts at the beginning (I think).</p>
 
-<p>A single transaction exists of a one or more "Descriptors".
-The last descriptor of a transaction is a "Commit Block", signaling
-that the transaction has been closed succesfully and the data in the previous
-descriptors of that transaction has been written to disk. There are two other
-types of descriptors: revoke blocks and blocks containing "tags".
-A revoke block is filled with block numbers that should be (or are) unallocated
-by this transaction. A tag is a structure that assigns subsequent journal blocks
-(not file system blocks!) to file system blocks: the following journal blocks
-contain the data that should (have been) written to the given file system block.</p>
+    <p>A single transaction exists of a one or more "Descriptors".
+      The last descriptor of a transaction is a "Commit Block", signaling
+      that the transaction has been closed succesfully and the data in the previous
+      descriptors of that transaction has been written to disk. There are two other
+      types of descriptors: revoke blocks and blocks containing "tags".
+      A revoke block is filled with block numbers that should be (or are) unallocated
+      by this transaction. A tag is a structure that assigns subsequent journal blocks
+      (not file system blocks!) to file system blocks: the following journal blocks
+      contain the data that should (have been) written to the given file system block.</p>
 
-<p>That makes "tags" in particular interesting for us: they contain
-copies of data that was written to disk in the past, including old inodes.</p>
+    <p>That makes "tags" in particular interesting for us: they contain
+      copies of data that was written to disk in the past, including old inodes.</p>
 
-<h3>Manual recovery example</h3>
+    <h3>Manual recovery example</h3>
 
-<p>In the following example we will manually recover a small file.
-Only partial output is given in order to save space and to make the
-example more readable.</p>
+    <p>In the following example we will manually recover a small file.
+      Only partial output is given in order to save space and to make the
+      example more readable.</p>
 
-<p>Using <code>ext3grep $IMAGE --ls --inode</code> we find the name of
-the file that we want to recover:</p>
+    <p>Using <code>ext3grep $IMAGE --ls --inode</code> we find the name of
+      the file that we want to recover:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --ls --inode 2 | grep carlo
+    <pre class="ext3grep">$ ext3grep $IMAGE --ls --inode 2 | grep carlo
    3  end d  195457  D 1202352103 Thu Feb  7 03:41:43 2008  drwxr-xr-x  carlo
 
 $ ext3grep $IMAGE --ls --inode 195457 | grep ' bin$' | head -n 1
@@ -975,9 +1233,9 @@ $ ext3grep $IMAGE --ls --inode 309540 | grep start_azureus
    9   10 r  309631  D 1202351093 Thu Feb  7 03:24:53 2008  rrwxr-xr-x  start_azureus
 </pre>
 
-<p>Obviously, inode 309631 is erased and we have no block numbers for this file:</p>
+    <p>Obviously, inode 309631 is erased and we have no block numbers for this file:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --print --inode 309631
+    <pre class="ext3grep">$ ext3grep $IMAGE --print --inode 309631
 [...]
 Inode is Unallocated
 Group: 19
@@ -997,16 +1255,16 @@ Deletion time:  1202351093 = Thu Feb  7 03:24:53 2008
 Direct Blocks:
 </pre>
 
-<p>Therefore, we will try to look for an older copy of it in the journal.
-First, we find the file system block that contains this inode:</p>
+    <p>Therefore, we will try to look for an older copy of it in the journal.
+      First, we find the file system block that contains this inode:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --inode-to-block 309631 | grep resides
+    <pre class="ext3grep">$ ext3grep $IMAGE --inode-to-block 309631 | grep resides
 Inode 309631 resides in block 622598 at offset 0xf00.
 </pre>
 
-<p>Then we find all journal descriptors referencing block 622598:</p>
+    <p>Then we find all journal descriptors referencing block 622598:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --journal --block 622598
+    <pre class="ext3grep">$ ext3grep $IMAGE --journal --block 622598
 [...]
 Journal descriptors referencing block 622598:
 4381294 26582
@@ -1029,17 +1287,17 @@ Journal descriptors referencing block 622598:
 4382140 8931
 </pre>
 
-<p>This means that the transaction with sequence number 4381294 has a copy
-of block 622598 in block 26582, and so on. The largest sequence number,
-at the bottom, should be the last data written to disk and thus block
-8931 should be the same as the current block 622598. In order to find
-the last non-deleted copy, one should start at the bottom and work upwards.</p>
+    <p>This means that the transaction with sequence number 4381294 has a copy
+      of block 622598 in block 26582, and so on. The largest sequence number,
+      at the bottom, should be the last data written to disk and thus block
+      8931 should be the same as the current block 622598. In order to find
+      the last non-deleted copy, one should start at the bottom and work upwards.</p>
 
-<p>If you try to print such a block, ext3grep recognizes that it's a block
-from an inode table and will print the contents of all 32 inodes in it.
-We only wish to see inode 309631 however; so we use a smart grep:</p>
+    <p>If you try to print such a block, ext3grep recognizes that it's a block
+      from an inode table and will print the contents of all 32 inodes in it.
+      We only wish to see inode 309631 however; so we use a smart grep:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --print --block 8931 | grep -A15 'Inode 309631'
+    <pre class="ext3grep">$ ext3grep $IMAGE --print --block 8931 | grep -A15 'Inode 309631'
 --------------Inode 309631-----------------------
 Generation Id: 2771183319
 uid / gid: 1000 / 1000
@@ -1057,12 +1315,12 @@ Deletion time:  1202351093 = Thu Feb  7 03:24:53 2008
 Direct Blocks:
 </pre>
 
-<p>This is indeed the same as we saw in block 622598. Next we
-look at smaller sequence numbers until we find one with a
-0 Deletion time. The first one that we find (bottom up) is
-block 6073:</p>
+    <p>This is indeed the same as we saw in block 622598. Next we
+      look at smaller sequence numbers until we find one with a
+      0 Deletion time. The first one that we find (bottom up) is
+      block 6073:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --print --block 6073 | grep -A15 'Inode 309631'
+    <pre class="ext3grep">$ ext3grep $IMAGE --print --block 6073 | grep -A15 'Inode 309631'
 --------------Inode 309631-----------------------
 Generation Id: 2771183319
 uid / gid: 1000 / 1000
@@ -1080,12 +1338,14 @@ Deletion time:  0
 Direct Blocks: 645627
 </pre>
 
-<p>The above is automated and can be done much faster with the command line option <code>--show-journal-inodes</code>.
-This option will find the block that the inode belongs to, then finds all copies of that block in the journal,
-and subsequently prints only the requested inode from each of these block (each of which contains 32 inodes, as you know),
-eliminating duplicates:</p>
+    <p>The above is automated and can be done much faster with the command line option
+      <code>--show-journal-inodes</code>.
+      This option will find the block that the inode belongs to, then finds all copies of that block in the journal,
+      and subsequently prints only the requested inode from each of these block (each of which contains 32 inodes, as
+      you know),
+      eliminating duplicates:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --show-journal-inodes 309631
+    <pre class="ext3grep">$ ext3grep $IMAGE --show-journal-inodes 309631
 Number of groups: 75
 Minimum / maximum journal block: 1115 / 35026
 Loading journal descriptors... done
@@ -1126,18 +1386,21 @@ Deletion time:  0
 Direct Blocks: 645627
 </pre>
 
-<p>The file is indeed small: only one block. We copy this block with dd as shown before:</p>
+    <p>The file is indeed small: only one block. We copy this block with dd as shown before:</p>
 
-<div class="command"><pre>$ dd if=$IMAGE bs=4096 count=1 skip=645627 of=block.645627
+    <div class="command">
+      <pre>$ dd if=$IMAGE bs=4096 count=1 skip=645627 of=block.645627
 1+0 records in
 1+0 records out
 4096 bytes (4.1 kB) copied, 0.0166104 seconds, 247 kB/s
-</pre></div>
+</pre>
+    </div>
 
-<p>and then edit the file to delete the trailing zeroes, or copy the first 40 bytes
-(the given size of the file):</p>
+    <p>and then edit the file to delete the trailing zeroes, or copy the first 40 bytes
+      (the given size of the file):</p>
 
-<div class="command"><pre>$ dd if=block.645627 bs=1 count=40 of=start_azureus
+    <div class="command">
+      <pre>$ dd if=block.645627 bs=1 count=40 of=start_azureus
 40+0 records in
 40+0 records out
 40 bytes (40 B) copied, 0.000105397 seconds, 380 kB/s
@@ -1145,15 +1408,16 @@ Direct Blocks: 645627
 $ cat start_azureus
 cd /usr/src/azureus/azureus
 ./azureus &amp;
-</pre></div>
+</pre>
+    </div>
 
-<p>Recovered!</p>
+    <p>Recovered!</p>
 
-<p>Note that it is possible to see all descriptors of a given transaction.
-The transaction that we used to recover this file was 4382098. The complete
-transaction can be seen with:</p>
+    <p>Note that it is possible to see all descriptors of a given transaction.
+      The transaction that we used to recover this file was 4382098. The complete
+      transaction can be seen with:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --journal-transaction 4382098
+    <pre class="ext3grep">$ ext3grep $IMAGE --journal-transaction 4382098
 [...]
 Prev / Current / Next sequences numbers: 4382097 4382098 4382099
 Transaction was NOT COMMITTED!
@@ -1162,23 +1426,25 @@ REVOKE: 506451
 TAG: 6056=393217 6057=1 6058=393273 6059=393232 6060=403879 6061=393216 6062=491520 6063=506302 6064=0 6065=393219
 </pre>
 
-<p>Here you see, for example, the TAG <code>6072=393218</code>, meaning that block 6072 contains a (old) copy of block 393218.
-I don't know why it says that the transaction wasn't committed (that seems very unlikely). Probably, the commit block
-was overwritten and this old journal transaction simply isn't complete anymore.</p>
+    <p>Here you see, for example, the TAG <code>6072=393218</code>, meaning that block 6072 contains a (old) copy of
+      block 393218.
+      I don't know why it says that the transaction wasn't committed (that seems very unlikely). Probably, the commit
+      block
+      was overwritten and this old journal transaction simply isn't complete anymore.</p>
 
-<h3>Recovering files</h3>
+    <h3>Recovering files</h3>
 
-<p>Of course, it would be annoying to recover larger files, existing of many blocks this way;
-let alone manually recovering thousands of files! Therefore all of the above can be automated.
-However, if you recover 50,000 files then there is virtually no way to even check if it worked
-afterwards: especially when MORE files were recovered than you really wanted; it will be
-hard to find back all the junk. You really should take care to recover files as accurate as
-possible.</p>
+    <p>Of course, it would be annoying to recover larger files, existing of many blocks this way;
+      let alone manually recovering thousands of files! Therefore all of the above can be automated.
+      However, if you recover 50,000 files then there is virtually no way to even check if it worked
+      afterwards: especially when MORE files were recovered than you really wanted; it will be
+      hard to find back all the junk. You really should take care to recover files as accurate as
+      possible.</p>
 
-<p>No such care seems necessary to recover a single file,
-you can just pass it's path to <code>ext3grep</code>:</p>
+    <p>No such care seems necessary to recover a single file,
+      you can just pass it's path to <code>ext3grep</code>:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --restore-file carlo/bin/start_kvm
+    <pre class="ext3grep">$ ext3grep $IMAGE --restore-file carlo/bin/start_kvm
 [...]
 Restoring carlo/bin/start_kvm
 
@@ -1193,14 +1459,18 @@ sudo kvm -m 384 -hda vdisk6GB.img -cdrom /dev/cdrom -localtime -std-vga -net nic
 killall -9 host-linux
 </pre>
 
-<p>Note that this created the directory <code>RESTORED_FILES/carlo/bin</code> in the current directory, in order to be able to restore this file.
-Also note that if <code>RESTORED_FILES/carlo/bin/start_kvm</code> already existed in the current directory then it was <em>not</em> overwritten!</p>
+    <p>Note that this created the directory <code>RESTORED_FILES/carlo/bin</code> in the current directory, in order to
+      be able to restore this file.
+      Also note that if <code>RESTORED_FILES/carlo/bin/start_kvm</code> already existed in the current directory then it
+      was <em>not</em> overwritten!</p>
 
-<p>In order for this to work you will first have to pass stage1 and stage2 of the disk analysis that <code>ext3grep</code> will perform (see below).</p>
+    <p>In order for this to work you will first have to pass stage1 and stage2 of the disk analysis that
+      <code>ext3grep</code> will perform (see below).</p>
 
-<p>It is possible to dump all file names that <code>ext3grep</code> can find, using the command line option <code>--dump-names</code>:</p>
+    <p>It is possible to dump all file names that <code>ext3grep</code> can find, using the command line option
+      <code>--dump-names</code>:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --dump-names
+    <pre class="ext3grep">$ ext3grep $IMAGE --dump-names
 carlo
 carlo/.Trash
 carlo/.Xauthority
@@ -1221,21 +1491,21 @@ lost+found/2002 - cloud cover (0-10%)
 [...]
 </pre>
 
-<p>The files that will end up in <code>lost+found</code> are files for which no directory could
-be found (but that still had an inode copy in the journal). Most likely those are files that were
-deleted long ago and can be disgarded anyway.</p>
+    <p>The files that will end up in <code>lost+found</code> are files for which no directory could
+      be found (but that still had an inode copy in the journal). Most likely those are files that were
+      deleted long ago and can be disgarded anyway.</p>
 
-<p>Once you are satisfied with the output of <code>--dump-names</code>, you can replace <code>--dump-names</code>
-with <code>--restore-all</code>, which in effect will cause <code>--restore-file</code> to be called on every
-file name printed by <code>--dump-names</code>. As mentioned before, it is highly advisable to use a proper
-<code>--after</code> command line option in order to avoid that <code>ext3grep</code> tries to recover files
-that are simply too old. Note that at this moment the output of <code>--dump-names</code> is unfiltered,
-and <code>--restore-file</code> (<code>--restore-all</code>) <em>only</em> honors the <code>--after</code>
-command line option.</p>
+    <p>Once you are satisfied with the output of <code>--dump-names</code>, you can replace <code>--dump-names</code>
+      with <code>--restore-all</code>, which in effect will cause <code>--restore-file</code> to be called on every
+      file name printed by <code>--dump-names</code>. As mentioned before, it is highly advisable to use a proper
+      <code>--after</code> command line option in order to avoid that <code>ext3grep</code> tries to recover files
+      that are simply too old. Note that at this moment the output of <code>--dump-names</code> is unfiltered,
+      and <code>--restore-file</code> (<code>--restore-all</code>) <em>only</em> honors the <code>--after</code>
+      command line option.</p>
 
-<p>For example,</p>
+    <p>For example,</p>
 
-<pre class="ext3grep">$ time ext3grep $IMAGE --restore-all --after=1202351117
+    <pre class="ext3grep">$ time ext3grep $IMAGE --restore-all --after=1202351117
 Only show/process deleted entries if they are deleted on or after Thu Feb  7 03:25:17 2008.
 [...]
 Loading md5.ext3grep.stage2... done
@@ -1251,32 +1521,33 @@ user	0m1.332s
 sys	0m1.744s
 </pre>
 
-<p>where <code>carlo/bin/startx</code> is the only file recovered. It was the <em>last</em>
-file that was deleted, and I set the <code>--after</code> value to one second before it was.
-Note that it's logical that it was the last file, since I started X by executing this
-script; hence, it was "in use" until I rebooted.</p>
+    <p>where <code>carlo/bin/startx</code> is the only file recovered. It was the <em>last</em>
+      file that was deleted, and I set the <code>--after</code> value to one second before it was.
+      Note that it's logical that it was the last file, since I started X by executing this
+      script; hence, it was "in use" until I rebooted.</p>
 
-<p>Considering that it checked over 50,000 files from a in total 10 GB large partition,
-the 3.1 seconds is extremely fast; this is caused by several factors:
-1) The first time <code>ext3grep</code> is run, it does a full analysis of the partition
-and writes the results to a cache file (in two steps, first stage1 and then stage2).
-These stages only need to be done once.
-2) Since only one file had to be recovered, there wasn't much disk access (besides, I
-have 4 GB of RAM -- so everything needed was already cached). 3) I have a very fast cpu.
-It was using 100% cpu during those 3.1 seconds though. Trying to restore many files
-mainly hangs on disk access, but is relatively still pretty fast (you can just sit
-and wait for it).</p>
+    <p>Considering that it checked over 50,000 files from a in total 10 GB large partition,
+      the 3.1 seconds is extremely fast; this is caused by several factors:
+      1) The first time <code>ext3grep</code> is run, it does a full analysis of the partition
+      and writes the results to a cache file (in two steps, first stage1 and then stage2).
+      These stages only need to be done once.
+      2) Since only one file had to be recovered, there wasn't much disk access (besides, I
+      have 4 GB of RAM -- so everything needed was already cached). 3) I have a very fast cpu.
+      It was using 100% cpu during those 3.1 seconds though. Trying to restore many files
+      mainly hangs on disk access, but is relatively still pretty fast (you can just sit
+      and wait for it).</p>
 
-<h3>Stage 1</h3>
+    <h3>Stage 1</h3>
 
-<p>The stage 1 cache file is written to <code>DEVICE.ext3grep.stage1</code>, where <code>DEVICE</code> is
-replaced with the device name (ie, if <code>$IMAGE</code> is <code>/dev/hda2</code>,
-then <code>DEVICE</code> is <code>hda2</code>). There is little that can go wrong with
-stage 1: it just scans the whole disk and finds all blocks that seem to contain a directory.</p>
+    <p>The stage 1 cache file is written to <code>DEVICE.ext3grep.stage1</code>, where <code>DEVICE</code> is
+      replaced with the device name (ie, if <code>$IMAGE</code> is <code>/dev/hda2</code>,
+      then <code>DEVICE</code> is <code>hda2</code>). There is little that can go wrong with
+      stage 1: it just scans the whole disk and finds all blocks that seem to contain a directory.</p>
 
-<p>The format of the stage1 cache file is:</p>
+    <p>The format of the stage1 cache file is:</p>
 
-<div class="command"><pre>$ cat md5.ext3grep.stage1
+    <div class="command">
+      <pre>$ cat md5.ext3grep.stage1
 # Stage 1 data for md5.
 # Inodes and directory start blocks that use it for dir entry '.'.
 # INODE : BLOCK [BLOCK ...]
@@ -1294,77 +1565,83 @@ stage 1: it just scans the whole disk and finds all blocks that seem to contain 
 1182
 [...]
 1884516
-</pre></div>
+</pre>
+    </div>
 
-<p>In the first part, the first column are inodes, followed by a space, followed by a colon,
-followed by a space seperated list of block numbers that use that inode for a dir entry with name ".".
-Obviously, there can only be one directory that uses this inode, so <code>ext3grep</code> has
-to determine which of those block numbers is the last one that was the real one. The second part
-lists all block numbers that contain extended directory blocks, that is, directory blocks that
-are not the first block and do not contain the dir_entry with name ".". It is unknown which
-directory those belong to without having the original inode. In stage 2 <code>ext3grep</code>
-will attempt to find out to which directory they belong.</p>
+    <p>In the first part, the first column are inodes, followed by a space, followed by a colon,
+      followed by a space seperated list of block numbers that use that inode for a dir entry with name ".".
+      Obviously, there can only be one directory that uses this inode, so <code>ext3grep</code> has
+      to determine which of those block numbers is the last one that was the real one. The second part
+      lists all block numbers that contain extended directory blocks, that is, directory blocks that
+      are not the first block and do not contain the dir_entry with name ".". It is unknown which
+      directory those belong to without having the original inode. In stage 2 <code>ext3grep</code>
+      will attempt to find out to which directory they belong.</p>
 
-<h3>Stage 2</h3>
+    <h3>Stage 2</h3>
 
-<p>This stage, executed by the function <code>init_directories()</code>, contains most heuristic code.
-First it determines which blocks are the real directory
-start blocks, and then assigns each extended directory block to one of those directories (see
-also TODO, below). As a result it is possible to assign a path name to each (directory) inode,
-and assign a list of directory blocks to them. Finally, this result is written to a cache file
-(<code>DEVICE.ext3grep.stage2</code>). In case something goes very wrong here, you might be
-able to fix it by editing this file (removing incorrect-, or adding correct block numbers),
-however, do not remove or add comments: <code>ext3grep</code> will get confused if you change
-the file too much.</p>
+    <p>This stage, executed by the function <code>init_directories()</code>, contains most heuristic code.
+      First it determines which blocks are the real directory
+      start blocks, and then assigns each extended directory block to one of those directories (see
+      also TODO, below). As a result it is possible to assign a path name to each (directory) inode,
+      and assign a list of directory blocks to them. Finally, this result is written to a cache file
+      (<code>DEVICE.ext3grep.stage2</code>). In case something goes very wrong here, you might be
+      able to fix it by editing this file (removing incorrect-, or adding correct block numbers),
+      however, do not remove or add comments: <code>ext3grep</code> will get confused if you change
+      the file too much.</p>
 
-<h3>locate database</h3>
+    <h3>locate database</h3>
 
-<p>I'm afraid that I used one more thing, besides just the data
-on my partition to recover my files: I still had my <code>/var</code> partition
-and therefore still had the <code>locate</code> database (in <code>/var/cache/locate/locatedb</code>).
-I used it to make a list of all file names that were deleted and wrote it to a file
-<code>locate_output</code>, with the format:</p>
+    <p>I'm afraid that I used one more thing, besides just the data
+      on my partition to recover my files: I still had my <code>/var</code> partition
+      and therefore still had the <code>locate</code> database (in <code>/var/cache/locate/locatedb</code>).
+      I used it to make a list of all file names that were deleted and wrote it to a file
+      <code>locate_output</code>, with the format:</p>
 
-<div class="command"><pre>carlo
+    <div class="command">
+      <pre>carlo
 carlo/.Trash
 carlo/.Xauthority
 [...]
-</pre></div>
+</pre>
+    </div>
 
-<p>in other words, the same format as the output of <code>--dump-names</code>.
-This file is being opened and used by the function <code>load_locate_data</code>,
-in the source file <code>locate.cc</code>, which fills <code>filename_to_locatepath_map</code>.
-That map is subsequently used by the function <code>parent_directory</code> in
-order to make an educated guess about what the correct parent directory is of
-a given filename.</p>
+    <p>in other words, the same format as the output of <code>--dump-names</code>.
+      This file is being opened and used by the function <code>load_locate_data</code>,
+      in the source file <code>locate.cc</code>, which fills <code>filename_to_locatepath_map</code>.
+      That map is subsequently used by the function <code>parent_directory</code> in
+      order to make an educated guess about what the correct parent directory is of
+      a given filename.</p>
 
-<p>Even then, because my locate database file wasn't complete, I needed to manually
-add hacks. In particular, it is possible to add a hardcoded list of regular
-expressions to <code>locate.cc</code> that causes a specified parent directory to
-be returned. Still, I also hardcoded the translation of three (directory) block
-numbers to "<code>lost+found</code>". It might be needed to tune/hack this part of the code
-if you want to be succesful in cleanly recovering your data to the correct
-directory.</p>
+    <p>Even then, because my locate database file wasn't complete, I needed to manually
+      add hacks. In particular, it is possible to add a hardcoded list of regular
+      expressions to <code>locate.cc</code> that causes a specified parent directory to
+      be returned. Still, I also hardcoded the translation of three (directory) block
+      numbers to "<code>lost+found</code>". It might be needed to tune/hack this part of the code
+      if you want to be succesful in cleanly recovering your data to the correct
+      directory.</p>
 
-<p>If you see messages of the form:</p>
+    <p>If you see messages of the form:</p>
 
-<pre>Could not find an inode for extended directory at BLOCKNR, disregarding it's contents.
+    <pre>Could not find an inode for extended directory at BLOCKNR, disregarding it's contents.
 </pre>
 
-<p>Then please read <a href="https://groups.google.com/forum/?fromgroups#%21msg/ext3grep/n-Q254XUGns/_WZ6ozEqCzcJ">this post</a> entirely, for more information.</p>
+    <p>Then please read <a
+        href="https://groups.google.com/forum/?fromgroups#%21msg/ext3grep/n-Q254XUGns/_WZ6ozEqCzcJ">this post</a>
+      entirely, for more information.</p>
 
-<h2>Superfluous hardlinks</h2>
+    <h2>Superfluous hardlinks</h2>
 
-<p>Because inodes are reused, it happens often that an old directory entry (of a deleted file,
-or in a deleted directory, or in an old directory block that is not used anymore) refers to
-an inode that is now used by something else. If that something else is of the same type (both
-regular files) then there is no way to distinguish it from a hardlink: two files using the
-same inode. As a result, a recovery results in a lot of WRONG hardlinks.</p>
+    <p>Because inodes are reused, it happens often that an old directory entry (of a deleted file,
+      or in a deleted directory, or in an old directory block that is not used anymore) refers to
+      an inode that is now used by something else. If that something else is of the same type (both
+      regular files) then there is no way to distinguish it from a hardlink: two files using the
+      same inode. As a result, a recovery results in a lot of WRONG hardlinks.</p>
 
-<p>In order to make it easier to clean these up, <code>ext3grep</code> provides the
-command line option <code>--show-hardlinks</code>.
+    <p>In order to make it easier to clean these up, <code>ext3grep</code> provides the
+      command line option <code>--show-hardlinks</code>.
 
-</p><pre class="ext3grep">$ ext3grep $IMAGE --show-hardlinks
+    </p>
+    <pre class="ext3grep">$ ext3grep $IMAGE --show-hardlinks
 [...]
 Inode 309562:
   carlo/bin/pc++ (309540)
@@ -1376,33 +1653,33 @@ Inode 702474:
 [...]
 </pre>
 
-<p>Here, the hardlinks for inode 309562 are correct. The hardlink for inode 702474
-is wrong, and one of the files should be deleted. After you manually determined which
-file is wrong and deleted it; it will not show up again when you rerun this command:
-Only those hardlinks are reported that still exist in the output directory: you
-can only use <code>--show-hardlinks</code> <em>after</em> running <code>--restore-all</code>,
-or it will not result in any output since no output file exists.</p>
+    <p>Here, the hardlinks for inode 309562 are correct. The hardlink for inode 702474
+      is wrong, and one of the files should be deleted. After you manually determined which
+      file is wrong and deleted it; it will not show up again when you rerun this command:
+      Only those hardlinks are reported that still exist in the output directory: you
+      can only use <code>--show-hardlinks</code> <em>after</em> running <code>--restore-all</code>,
+      or it will not result in any output since no output file exists.</p>
 
-<h2>TODO</h2>
+    <h2>TODO</h2>
 
-<p>The program has been written <em>while</em> I was learning how ext3 works. It's earliest
-functionality is therefore not depending on things that I wrote later. An advantage is that
-those functionalities are faster and will still work if the later code is broken; they are
-also more down-to-earth, so you can use them to check what is really going on without
-depending on the more complex (and heuristic) code that was added later. However, there are
-also disadvantages: The filtering code that I wrote for <code>--ls</code> is not being
-used by the later written code that handles <code>--dump-names</code> and <code>--restore-all</code>.
-Also, stage 2 is resolved without using the journal as would be possible by using code
-written later. It is not easy to change that because that code uses the results of stage 2.
-I think that a better algorithm to find which blocks are the correct ones for the last
-copy of a directory would be the same as how I finally recovered files: by finding the last
-non-deleted inode of that directory in the journal. This is not how it currently works though.</p>
+    <p>The program has been written <em>while</em> I was learning how ext3 works. It's earliest
+      functionality is therefore not depending on things that I wrote later. An advantage is that
+      those functionalities are faster and will still work if the later code is broken; they are
+      also more down-to-earth, so you can use them to check what is really going on without
+      depending on the more complex (and heuristic) code that was added later. However, there are
+      also disadvantages: The filtering code that I wrote for <code>--ls</code> is not being
+      used by the later written code that handles <code>--dump-names</code> and <code>--restore-all</code>.
+      Also, stage 2 is resolved without using the journal as would be possible by using code
+      written later. It is not easy to change that because that code uses the results of stage 2.
+      I think that a better algorithm to find which blocks are the correct ones for the last
+      copy of a directory would be the same as how I finally recovered files: by finding the last
+      non-deleted inode of that directory in the journal. This is not how it currently works though.</p>
 
-<h2>Command line options</h2>
+    <h2>Command line options</h2>
 
-<p>All command line options are listed by providing <code>--help</code> on the command line:</p>
+    <p>All command line options are listed by providing <code>--help</code> on the command line:</p>
 
-<pre class="ext3grep">$ ext3grep $IMAGE --help
+    <pre class="ext3grep">$ ext3grep $IMAGE --help
 Usage: ext3grep [options] [--] device-file
 Options:
   --version, -[vV]       Print version and exit successfully.
@@ -1475,49 +1752,57 @@ Actions:
   --show-hardlinks       Show all inodes that are shared by two or more files.
 </pre>
 
-<p>New functionality was more or less added top down, so this also gives
-a historic overview of how the program was written.</p>
+    <p>New functionality was more or less added top down, so this also gives
+      a historic overview of how the program was written.</p>
 
-<a name="button">
-<h2>Donations</h2>
+    <a name="button">
+      <h2>Donations</h2>
 
-<p>If anyone wants to donate something to make my life easier,
-then please click on the button below, which will bring you
-to paypal's secure website (https://www.paypal.com/...).
-Thanks for your support!</p>
+      <p>If anyone wants to donate something to make my life easier,
+        then please click on the button below, which will bring you
+        to paypal's secure website (https://www.paypal.com/...).
+        Thanks for your support!</p>
 
-<form action="https://www.paypal.com/cgi-bin/webscr" method="post">
-<input name="cmd" value="_s-xclick" type="hidden">
-<input src="undelete_ext3_files/btn_donate_LG.gif" name="submit" alt="PayPal - The safer, easier way to pay online!" border="0" type="image">
-<img alt="" src="undelete_ext3_files/pixel.gif" border="0" height="1" width="1">
-<input name="encrypted" value="-----BEGIN PKCS7-----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-----END PKCS7-----" type="hidden">
-</form>
+      <form action="https://www.paypal.com/cgi-bin/webscr" method="post">
+        <input name="cmd" value="_s-xclick" type="hidden">
+        <input src="undelete_ext3_files/btn_donate_LG.gif" name="submit"
+          alt="PayPal - The safer, easier way to pay online!" border="0" type="image">
+        <img alt="" src="undelete_ext3_files/pixel.gif" border="0" height="1" width="1">
+        <input name="encrypted"
+          value="-----BEGIN PKCS7-----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-----END PKCS7-----"
+          type="hidden">
+      </form>
 
-<h2>Download</h2>
+      <h2>Download</h2>
 
-</a><p><a name="button">Please follow this link to the project site of ext3grep:
-</a><a href="http://code.google.com/p/ext3grep/">http://code.google.com/p/ext3grep/</a>.</p>
+    </a>
+    <p><a name="button">Please follow this link to the project site of ext3grep:
+      </a><a href="http://code.google.com/p/ext3grep/">http://code.google.com/p/ext3grep/</a>.</p>
 
-<p>You are <em>strongly</em> advised to join this group and read
-<a href="https://groups.google.com/forum/?fromgroups#%21forum/ext3grep">the archives</a> of the mailinglist.</p>
+    <p>You are <em>strongly</em> advised to join this group and read
+      <a href="https://groups.google.com/forum/?fromgroups#%21forum/ext3grep">the archives</a> of the mailinglist.</p>
 
-<p>If you have a gmail account and do not mind receiving your mail
-there (note that you can forward gmail mails to another email
-address), then you should go here:</p><p>
+    <p>If you have a gmail account and do not mind receiving your mail
+      there (note that you can forward gmail mails to another email
+      address), then you should go here:</p>
+    <p>
 
-<a href="http://groups.google.com/group/ext3grep/subscribe">http://groups.google.com/group/ext3grep/subscribe</a>
+      <a href="http://groups.google.com/group/ext3grep/subscribe">http://groups.google.com/group/ext3grep/subscribe</a>
 
-</p><p>If you don't want to use gmail, then please invite yourself by
-sending an email to ext3grep-subscribe@googlegroups.com.
-The disadvantage of that is that you won't be really a member
-of the group and the website is less useful. For example, you
-won't be able to set the delivery type to 'Digest'.</p>
+    </p>
+    <p>If you don't want to use gmail, then please invite yourself by
+      sending an email to ext3grep-subscribe@googlegroups.com.
+      The disadvantage of that is that you won't be really a member
+      of the group and the website is less useful. For example, you
+      won't be able to set the delivery type to 'Digest'.</p>
 
-</div> <!-- content -->
+  </div> <!-- content -->
 
-<div id="footer">Copyright © 2008 Carlo Wood</div>
-
-
+  <div id="footer">Copyright © 2008 Carlo Wood</div>
 
 
-</body></html>
+
+
+</body>
+
+</html>
